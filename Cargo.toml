@@ -1,0 +1,13 @@
+[package]
+name = "imgui_dx9_renderer"
+version = "0.1.0"
+authors = ["Lukas Wirth <lukastw97@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+winapi = { version = "0.3.7", features = ["d3d9", "d3d9types", "windef"] }
+imgui = "0.0.23"
+winit = "^0.19"
+
+[dev-dependencies]
+imgui-winit-support = "0.0.23"
