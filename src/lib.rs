@@ -1,11 +1,17 @@
+#![cfg(windows)]
 #![forbid(rust_2018_idioms)]
+//! This crate offers a DirectX 9 renderer for the imgui-rs rust bindings.
+
+pub use winapi::shared::d3d9::IDirect3DDevice9;
+
 use imgui::{DrawData, FrameSize, ImDrawIdx, ImGui, Ui};
 use winapi::shared::{
     d3d9::{
-        IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9,
-        LPDIRECT3DSTATEBLOCK9, LPDIRECT3DTEXTURE9,
+        IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
+        LPDIRECT3DTEXTURE9,
     },
     d3d9types::*,
+    minwindef,
     windef::RECT,
 };
 
@@ -18,6 +24,9 @@ use core::{
 
 const D3DPOLL_DEFAULT: u32 = 0;
 const D3DFVF_CUSTOMVERTEX: u32 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
+
+const FALSE: u32 = minwindef::FALSE as u32;
+const TRUE: u32 = minwindef::TRUE as u32;
 
 #[repr(C)]
 struct CustomVertex {
@@ -52,6 +61,7 @@ impl fmt::Display for RendererError {
 
 impl std::error::Error for RendererError {}
 
+/// A DirectX 9 renderer for Imgui-rs.
 pub struct Renderer {
     device: LPDIRECT3DDEVICE9,
     textures: Textures,
@@ -60,12 +70,20 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Creates a new renderer for the given [`IDirect3DDevice9`].
+    ///
+    /// Internally the renderer will then add a reference through the
+    /// COM api via [`IUnknown::AddRef`] and release it via
+    /// [`IUnknown::Release`] once dropped.
+    ///
+    /// [`IDirect3DDevice9`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/shared/d3d9/struct.IDirect3DDevice9.html
+    /// [`IUnknown::AddRef`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/um/unknwnbase/struct.IUnknown.html#method.AddRef
+    /// [`IUnknown::Release`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/um/unknwnbase/struct.IUnknown.html#method.Release
     pub fn new(imgui: &mut ImGui, device: NonNull<IDirect3DDevice9>) -> Result<Self> {
         unsafe {
             let device = device.as_ptr();
             let textures = Self::create_font_texture(imgui, device)?;
-            // device cannot be null at this point
-            (((*(*device).lpVtbl).parent).AddRef)(device as _);
+            (&*device).AddRef();
             Ok(Renderer {
                 device,
                 textures,
@@ -75,6 +93,9 @@ impl Renderer {
         }
     }
 
+    /// Renders the given [`Ui`] with this renderer.
+    ///
+    /// [`Ui`]: https://docs.rs/imgui/0.0.23/imgui/struct.Ui.html
     pub fn render(&mut self, ui: Ui<'_>) -> Result<()> {
         ui.render(|ui, draw_data| unsafe {
             match self.vertex_buffer.as_ref() {
@@ -113,10 +134,9 @@ impl Renderer {
                     .textures
                     .get(cmd.texture_id.into())
                     .expect("Font hasnt been initialized");
-                ((*(*self.device).lpVtbl).SetTexture)(self.device, 0, texture as _);
-                ((*(*self.device).lpVtbl).SetScissorRect)(self.device, &r);
-                ((*(*self.device).lpVtbl).DrawIndexedPrimitive)(
-                    self.device,
+                (&*self.device).SetTexture(0, texture as _);
+                (&*self.device).SetScissorRect(&r);
+                (&*self.device).DrawIndexedPrimitive(
                     D3DPT_TRIANGLELIST,
                     vertex_offset as _,
                     0,
@@ -150,28 +170,28 @@ impl Renderer {
             MaxZ: 1.0,
         };
 
-        ((*(*self.device).lpVtbl).SetViewport)(self.device, &vp);
-        ((*(*self.device).lpVtbl).SetPixelShader)(self.device, ptr::null_mut());
-        ((*(*self.device).lpVtbl).SetVertexShader)(self.device, ptr::null_mut());
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_CULLMODE, D3DCULL_NONE);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_LIGHTING, 0);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_ZENABLE, 0);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_ALPHABLENDENABLE, 1);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_ALPHATESTENABLE, 0);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_BLENDOP, D3DBLENDOP_ADD);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_SCISSORTESTENABLE, 1);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
-        ((*(*self.device).lpVtbl).SetRenderState)(self.device, D3DRS_FOGENABLE, 0);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-        ((*(*self.device).lpVtbl).SetTextureStageState)(self.device, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-        ((*(*self.device).lpVtbl).SetSamplerState)(self.device, 0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-        ((*(*self.device).lpVtbl).SetSamplerState)(self.device, 0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+        (&*self.device).SetViewport(&vp);
+        (&*self.device).SetPixelShader(ptr::null_mut());
+        (&*self.device).SetVertexShader(ptr::null_mut());
+        (&*self.device).SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+        (&*self.device).SetRenderState(D3DRS_LIGHTING, FALSE);
+        (&*self.device).SetRenderState(D3DRS_ZENABLE, FALSE);
+        (&*self.device).SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+        (&*self.device).SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+        (&*self.device).SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+        (&*self.device).SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+        (&*self.device).SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        (&*self.device).SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE);
+        (&*self.device).SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
+        (&*self.device).SetRenderState(D3DRS_FOGENABLE, FALSE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+        (&*self.device).SetTextureStageState(FALSE, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+        (&*self.device).SetSamplerState(FALSE, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+        (&*self.device).SetSamplerState(FALSE, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 
         // FIXME move into a configuration
         let (pos_x, pos_y) = (0.0, 0.0);
@@ -191,9 +211,9 @@ impl Renderer {
             [0.0,         0.0,         0.5, 0.0],
             [(l+r)/(l-r), (t+b)/(b-t), 0.5, 1.0]
         ]};
-        ((*(*self.device).lpVtbl).SetTransform)(self.device, D3DTS_WORLD, &mat_identity);
-        ((*(*self.device).lpVtbl).SetTransform)(self.device, D3DTS_VIEW, &mat_identity);
-        ((*(*self.device).lpVtbl).SetTransform)(self.device, D3DTS_PROJECTION, &mat_projection);
+        (&*self.device).SetTransform(D3DTS_WORLD, &mat_identity);
+        (&*self.device).SetTransform(D3DTS_VIEW, &mat_identity);
+        (&*self.device).SetTransform(D3DTS_PROJECTION, &mat_projection);
     }
 
     unsafe fn write_buffers(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
@@ -247,23 +267,16 @@ impl Renderer {
         }
         ((*(*vb.as_ptr()).lpVtbl).Unlock)(vb.as_ptr());
         ((*(*ib.as_ptr()).lpVtbl).Unlock)(ib.as_ptr());
-        ((*(*self.device).lpVtbl).SetStreamSource)(
-            self.device,
-            0,
-            vb.as_ptr(),
-            0,
-            mem::size_of::<CustomVertex>() as u32,
-        );
-        ((*(*self.device).lpVtbl).SetIndices)(self.device, ib.as_ptr());
-        ((*(*self.device).lpVtbl).SetFVF)(self.device, D3DFVF_CUSTOMVERTEX);
+        (&*self.device).SetStreamSource(0, vb.as_ptr(), 0, mem::size_of::<CustomVertex>() as u32);
+        (&*self.device).SetIndices(ib.as_ptr());
+        (&*self.device).SetFVF(D3DFVF_CUSTOMVERTEX);
         Ok(())
     }
 
     unsafe fn recreate_vertex_buffer(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
         let mut vertex_buffer = ptr::null_mut();
         let len = draw_data.total_vtx_count() + 5000;
-        if ((*(*self.device).lpVtbl).CreateVertexBuffer)(
-            self.device,
+        if (&*self.device).CreateVertexBuffer(
             (len * mem::size_of::<CustomVertex>()) as u32,
             D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
             D3DFVF_CUSTOMVERTEX,
@@ -283,8 +296,7 @@ impl Renderer {
     unsafe fn recreate_index_buffer(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
         let mut index_buffer = ptr::null_mut();
         let len = draw_data.total_idx_count() + 10000;
-        if ((*(*self.device).lpVtbl).CreateIndexBuffer)(
-            self.device,
+        if (&*self.device).CreateIndexBuffer(
             (len * mem::size_of::<ImDrawIdx>()) as u32,
             D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
             if mem::size_of::<ImDrawIdx>() == 2 {
@@ -351,7 +363,7 @@ impl Renderer {
 
 impl Drop for Renderer {
     fn drop(&mut self) {
-        unsafe { ((*(*self.device).lpVtbl).parent.Release)(self.device as _) };
+        unsafe { (&*self.device).Release() };
     }
 }
 
@@ -408,12 +420,12 @@ impl StateBackup {
         // FIXME: Use MaybeUninit once its stable
         let mut this = ManuallyDrop::<Self>::new(mem::zeroed());
         this.device = device;
-        if ((*(*device).lpVtbl).CreateStateBlock)(device, D3DSBT_ALL, &mut this.state_block) < 0 {
+        if (&*device).CreateStateBlock(D3DSBT_ALL, &mut this.state_block) < 0 {
             return Err(RendererError::StateBackup);
         }
-        ((*(*device).lpVtbl).GetTransform)(device, D3DTS_WORLD, &mut this.last_world);
-        ((*(*device).lpVtbl).GetTransform)(device, D3DTS_VIEW, &mut this.last_view);
-        ((*(*device).lpVtbl).GetTransform)(device, D3DTS_PROJECTION, &mut this.last_projection);
+        (&*device).GetTransform(D3DTS_WORLD, &mut this.last_world);
+        (&*device).GetTransform(D3DTS_VIEW, &mut this.last_view);
+        (&*device).GetTransform(D3DTS_PROJECTION, &mut this.last_projection);
         Ok(ManuallyDrop::into_inner(this))
     }
 }
@@ -421,15 +433,11 @@ impl StateBackup {
 impl Drop for StateBackup {
     fn drop(&mut self) {
         unsafe {
-            ((*(*self.device).lpVtbl).SetTransform)(self.device, D3DTS_WORLD, &self.last_world);
-            ((*(*self.device).lpVtbl).SetTransform)(self.device, D3DTS_VIEW, &self.last_view);
-            ((*(*self.device).lpVtbl).SetTransform)(
-                self.device,
-                D3DTS_PROJECTION,
-                &self.last_projection,
-            );
-            ((*(*self.state_block).lpVtbl).Apply)(self.state_block);
-            ((*(*self.state_block).lpVtbl).parent.Release)(self.state_block as _);
+            (&*self.device).SetTransform(D3DTS_WORLD, &self.last_world);
+            (&*self.device).SetTransform(D3DTS_VIEW, &self.last_view);
+            (&*self.device).SetTransform(D3DTS_PROJECTION, &self.last_projection);
+            (&*self.state_block).Apply();
+            (&*self.state_block).Release();
         }
     }
 }
