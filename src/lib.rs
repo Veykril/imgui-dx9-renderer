@@ -4,7 +4,7 @@
 
 pub use winapi::shared::d3d9::IDirect3DDevice9;
 
-use imgui::{DrawData, FrameSize, ImDrawIdx, ImGui, Ui};
+use imgui::{Context, DrawCmd, DrawData, DrawIdx, ImString, TextureId, Ui};
 use winapi::shared::{
     d3d9::{
         IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
@@ -31,11 +31,11 @@ const TRUE: u32 = minwindef::TRUE as u32;
 #[repr(C)]
 struct CustomVertex {
     pos: [f32; 3],
-    col: D3DCOLOR,
+    col: [u8; 4],
     uv: [f32; 2],
 }
 
-type Textures = imgui::Textures<Texture>;
+//type Textures = imgui::Textures<Texture>;
 type Result<T> = core::result::Result<T, RendererError>;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,7 +66,7 @@ impl std::error::Error for RendererError {}
 /// A DirectX 9 renderer for Imgui-rs.
 pub struct Renderer {
     device: LPDIRECT3DDEVICE9,
-    textures: Textures,
+    font_tex: Texture,
     vertex_buffer: Option<VertexBuffer>,
     index_buffer: Option<IndexBuffer>,
 }
@@ -81,14 +81,18 @@ impl Renderer {
     /// [`IDirect3DDevice9`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/shared/d3d9/struct.IDirect3DDevice9.html
     /// [`IUnknown::AddRef`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/um/unknwnbase/struct.IUnknown.html#method.AddRef
     /// [`IUnknown::Release`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/um/unknwnbase/struct.IUnknown.html#method.Release
-    pub fn new(imgui: &mut ImGui, device: NonNull<IDirect3DDevice9>) -> Result<Self> {
+    pub fn new(ctx: &mut Context, device: NonNull<IDirect3DDevice9>) -> Result<Self> {
         unsafe {
             let device = device.as_ptr();
-            let textures = Self::create_font_texture(imgui, device)?;
+            let font_tex = Self::create_font_texture(ctx.fonts(), device)?;
             (*device).AddRef();
+            ctx.set_renderer_name(Some(ImString::new(concat!(
+                "imgui_dx9_renderer ",
+                env!("CARGO_PKG_VERSION")
+            ))));
             Ok(Renderer {
                 device,
-                textures,
+                font_tex,
                 vertex_buffer: None,
                 index_buffer: None,
             })
@@ -99,13 +103,14 @@ impl Renderer {
     ///
     /// [`Ui`]: https://docs.rs/imgui/0.0.23/imgui/struct.Ui.html
     pub fn render(&mut self, ui: Ui<'_>) -> Result<()> {
-        ui.render(|ui, draw_data| unsafe {
+        unsafe {
+            let draw_data = ui.render();
             match self.vertex_buffer.as_ref() {
-                Some(vb) if vb.len() > draw_data.total_vtx_count() => (),
+                Some(vb) if vb.len() > draw_data.total_vtx_count as usize => (),
                 _ => self.recreate_vertex_buffer(&draw_data)?,
             }
             match self.index_buffer.as_ref() {
-                Some(ib) if ib.len() > draw_data.total_idx_count() => (),
+                Some(ib) if ib.len() > draw_data.total_idx_count as usize => (),
                 _ => self.recreate_index_buffer(&draw_data)?,
             }
 
@@ -113,56 +118,56 @@ impl Renderer {
 
             self.write_buffers(&draw_data)?;
 
-            self.set_render_state(&ui);
+            self.set_render_state(&draw_data);
 
             self.render_impl(&draw_data)
-        })
+        }
     }
 
-    unsafe fn render_impl(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
+    unsafe fn render_impl(&mut self, draw_data: &DrawData) -> Result<()> {
         let clip_off = (0.0, 0.0);
         let mut vertex_offset = 0u32;
         let mut index_offset = 0;
-        for draw_list in draw_data {
-            for cmd in draw_list.cmd_buffer {
-                let r: RECT = RECT {
-                    left: (cmd.clip_rect.x - clip_off.0) as _,
-                    top: (cmd.clip_rect.y - clip_off.1) as _,
-                    right: (cmd.clip_rect.z - clip_off.0) as _,
-                    bottom: (cmd.clip_rect.w - clip_off.1) as _,
-                };
-                let texture = self
-                    .textures
-                    .get(cmd.texture_id.into())
-                    .ok_or(RendererError::InvalidTexture)?
-                    .0;
-                (*self.device).SetTexture(0, texture as _);
-                (*self.device).SetScissorRect(&r);
-                (*self.device).DrawIndexedPrimitive(
-                    D3DPT_TRIANGLELIST,
-                    vertex_offset as _,
-                    0,
-                    draw_list.vtx_buffer.len() as u32,
-                    index_offset,
-                    cmd.elem_count / 3,
-                );
-                index_offset += cmd.elem_count;
+        for draw_list in draw_data.draw_lists() {
+            for cmd in draw_list.commands() {
+                if let DrawCmd::Elements { count, cmd_params } = cmd {
+                    let r: RECT = RECT {
+                        left: (cmd_params.clip_rect[0] - clip_off.0) as _,
+                        top: (cmd_params.clip_rect[1] - clip_off.1) as _,
+                        right: (cmd_params.clip_rect[2] - clip_off.0) as _,
+                        bottom: (cmd_params.clip_rect[3] - clip_off.1) as _,
+                    };
+                    let texture = if cmd_params.texture_id.id() == !0 {
+                        self.font_tex.0
+                    } else {
+                        return Err(RendererError::InvalidTexture);
+                    };
+                    (*self.device).SetTexture(0, texture as _);
+                    (*self.device).SetScissorRect(&r);
+                    (*self.device).DrawIndexedPrimitive(
+                        D3DPT_TRIANGLELIST,
+                        vertex_offset as _,
+                        0,
+                        draw_list.vtx_buffer().len() as u32,
+                        index_offset,
+                        count as u32 / 3,
+                    );
+                    index_offset += count as u32;
+                }
             }
-            vertex_offset += draw_list.vtx_buffer.len() as u32;
+            vertex_offset += draw_list.vtx_buffer().len() as u32;
         }
         Ok(())
     }
 
-    #[rustfmt::skip]
-    unsafe fn set_render_state(&mut self, ui: &Ui<'_>) {
-        let FrameSize {
-            logical_size: (width, height),
-            hidpi_factor,
-        } = ui.frame_size();
-        let fb_size = if !(width > 0.0 && height > 0.0) {
+    unsafe fn set_render_state(&mut self, draw_data: &DrawData) {
+        let fb_size = if draw_data.display_size[0] < 0.0 || draw_data.display_size[1] < 0.0 {
             return;
         } else {
-            ((width * hidpi_factor) as f32, (height * hidpi_factor) as f32)
+            (
+                (draw_data.display_size[0] * draw_data.framebuffer_scale[0]) as f32,
+                (draw_data.display_size[1] * draw_data.framebuffer_scale[1]) as f32,
+            )
         };
         let vp = D3DVIEWPORT9 {
             X: 0,
@@ -202,24 +207,28 @@ impl Renderer {
         let r = pos_x + fb_size.0 + 0.5;
         let t = pos_y + 0.5;
         let b = pos_y + fb_size.1 + 0.5;
-        let mat_identity = D3DMATRIX { m: [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]
-        ]};
-        let mat_projection = D3DMATRIX { m: [
-            [2.0/(r-l),   0.0,         0.0, 0.0],
-            [0.0,         2.0/(t-b),   0.0, 0.0],
-            [0.0,         0.0,         0.5, 0.0],
-            [(l+r)/(l-r), (t+b)/(b-t), 0.5, 1.0]
-        ]};
+        let mat_identity = D3DMATRIX {
+            m: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        };
+        let mat_projection = D3DMATRIX {
+            m: [
+                [2.0 / (r - l), 0.0, 0.0, 0.0],
+                [0.0, 2.0 / (t - b), 0.0, 0.0],
+                [0.0, 0.0, 0.5, 0.0],
+                [(l + r) / (l - r), (t + b) / (b - t), 0.5, 1.0],
+            ],
+        };
         (*self.device).SetTransform(D3DTS_WORLD, &mat_identity);
         (*self.device).SetTransform(D3DTS_VIEW, &mat_identity);
         (*self.device).SetTransform(D3DTS_PROJECTION, &mat_projection);
     }
 
-    unsafe fn write_buffers(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
+    unsafe fn write_buffers(&mut self, draw_data: &DrawData) -> Result<()> {
         let (vb, ib) = (
             self.vertex_buffer
                 .as_ref()
@@ -229,10 +238,10 @@ impl Renderer {
                 .expect("indexbuffer should've been initialized"),
         );
         let mut vtx_dst: *mut CustomVertex = ptr::null_mut();
-        let mut idx_dst: *mut ImDrawIdx = ptr::null_mut();
+        let mut idx_dst: *mut DrawIdx = ptr::null_mut();
         if (*vb.as_ptr()).Lock(
             0,
-            (draw_data.total_vtx_count() * mem::size_of::<CustomVertex>()) as u32,
+            (draw_data.total_vtx_count as usize * mem::size_of::<CustomVertex>()) as u32,
             &mut vtx_dst as *mut _ as _,
             D3DLOCK_DISCARD,
         ) < 0
@@ -241,30 +250,28 @@ impl Renderer {
         }
         if (*ib.as_ptr()).Lock(
             0,
-            (draw_data.total_idx_count() * mem::size_of::<ImDrawIdx>()) as u32,
+            (draw_data.total_idx_count as usize * mem::size_of::<DrawIdx>()) as u32,
             &mut idx_dst as *mut _ as _,
             D3DLOCK_DISCARD,
         ) < 0
         {
             return Err(RendererError::WriteBuffer);
         }
-        for draw_list in draw_data {
-            for vertex in draw_list.vtx_buffer.iter() {
+        for draw_list in draw_data.draw_lists() {
+            for vertex in draw_list.vtx_buffer() {
                 *vtx_dst = CustomVertex {
-                    pos: [vertex.pos.x, vertex.pos.y, 0.0],
-                    col: (vertex.col & 0xFF00_FF00)
-                        | ((vertex.col & 0x00FF_0000) >> 16)
-                        | ((vertex.col & 0xFF) << 16),
-                    uv: [vertex.uv.x, vertex.uv.y],
+                    pos: [vertex.pos[0], vertex.pos[1], 0.0],
+                    col: [vertex.col[2], vertex.col[1], vertex.col[0], vertex.col[3]],
+                    uv: [vertex.uv[0], vertex.uv[1]],
                 };
                 vtx_dst = vtx_dst.add(1);
             }
             ptr::copy(
-                draw_list.idx_buffer.as_ptr(),
+                draw_list.idx_buffer().as_ptr(),
                 idx_dst as _,
-                draw_list.idx_buffer.len(),
+                draw_list.idx_buffer().len(),
             );
-            idx_dst = idx_dst.add(draw_list.idx_buffer.len());
+            idx_dst = idx_dst.add(draw_list.idx_buffer().len());
         }
         (*vb.as_ptr()).Unlock();
         (*ib.as_ptr()).Unlock();
@@ -274,9 +281,9 @@ impl Renderer {
         Ok(())
     }
 
-    unsafe fn recreate_vertex_buffer(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
+    unsafe fn recreate_vertex_buffer(&mut self, draw_data: &DrawData) -> Result<()> {
         let mut vertex_buffer = ptr::null_mut();
-        let len = draw_data.total_vtx_count() + 5000;
+        let len = draw_data.total_vtx_count as usize + 5000;
         if (*self.device).CreateVertexBuffer(
             (len * mem::size_of::<CustomVertex>()) as u32,
             D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
@@ -294,13 +301,13 @@ impl Renderer {
         }
     }
 
-    unsafe fn recreate_index_buffer(&mut self, draw_data: &DrawData<'_>) -> Result<()> {
+    unsafe fn recreate_index_buffer(&mut self, draw_data: &DrawData) -> Result<()> {
         let mut index_buffer = ptr::null_mut();
-        let len = draw_data.total_idx_count() + 10000;
+        let len = draw_data.total_idx_count as usize + 10000;
         if (*self.device).CreateIndexBuffer(
-            (len * mem::size_of::<ImDrawIdx>()) as u32,
+            (len * mem::size_of::<DrawIdx>()) as u32,
             D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-            if mem::size_of::<ImDrawIdx>() == 2 {
+            if mem::size_of::<DrawIdx>() == 2 {
                 D3DFMT_INDEX16
             } else {
                 D3DFMT_INDEX32
@@ -318,40 +325,39 @@ impl Renderer {
         }
     }
 
-    fn create_font_texture(imgui: &mut ImGui, device: LPDIRECT3DDEVICE9) -> Result<Textures> {
-        let font_tex = imgui.prepare_texture(|handle| unsafe {
-            let mut texture_handle: LPDIRECT3DTEXTURE9 = ptr::null_mut();
-            if (*device).CreateTexture(
-                handle.width,
-                handle.height,
-                1,
-                D3DUSAGE_DYNAMIC,
-                D3DFMT_A8R8G8B8,
-                D3DPOLL_DEFAULT,
-                &mut texture_handle,
-                ptr::null_mut(),
-            ) < 0
-            {
-                return Err(RendererError::TextureCreation);
-            }
-            let mut tex_locked_rect: D3DLOCKED_RECT = D3DLOCKED_RECT {
-                Pitch: 0,
-                pBits: ptr::null_mut(),
-            };
-            if (*texture_handle).LockRect(0, &mut tex_locked_rect, ptr::null_mut(), 0) != 0 {
-                return Err(RendererError::TextureCreation);
-            }
+    unsafe fn create_font_texture(
+        mut fonts: imgui::FontAtlasRefMut<'_>,
+        device: LPDIRECT3DDEVICE9,
+    ) -> Result<Texture> {
+        let texture = fonts.build_rgba32_texture();
+        let mut texture_handle: LPDIRECT3DTEXTURE9 = ptr::null_mut();
+        if (*device).CreateTexture(
+            texture.width,
+            texture.height,
+            1,
+            D3DUSAGE_DYNAMIC,
+            D3DFMT_A8R8G8B8,
+            D3DPOLL_DEFAULT,
+            &mut texture_handle,
+            ptr::null_mut(),
+        ) < 0
+        {
+            return Err(RendererError::TextureCreation);
+        }
+        let mut tex_locked_rect: D3DLOCKED_RECT = D3DLOCKED_RECT {
+            Pitch: 0,
+            pBits: ptr::null_mut(),
+        };
+        if (*texture_handle).LockRect(0, &mut tex_locked_rect, ptr::null_mut(), 0) != 0 {
+            return Err(RendererError::TextureCreation);
+        }
 
-            slice::from_raw_parts_mut(tex_locked_rect.pBits as *mut u8, handle.pixels.len())
-                .copy_from_slice(handle.pixels);
+        slice::from_raw_parts_mut(tex_locked_rect.pBits as *mut u8, texture.data.len())
+            .copy_from_slice(texture.data);
 
-            (*texture_handle).UnlockRect(0);
-            Ok(texture_handle)
-        })?;
-        let mut textures = Textures::new();
-        let tex_id = textures.insert(Texture(font_tex));
-        imgui.set_font_texture_id(tex_id);
-        Ok(textures)
+        (*texture_handle).UnlockRect(0);
+        fonts.tex_id = TextureId::from(!0);
+        Ok(Texture(texture_handle))
     }
 }
 

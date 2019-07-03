@@ -1,4 +1,5 @@
-use imgui::{im_str, ImFontConfig, ImVec4};
+use imgui::{im_str, FontConfig, FontSource};
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use winapi::shared::{d3d9::*, d3d9caps::*, d3d9types::*, windef::HWND};
 use winit::{dpi::LogicalSize, os::windows::WindowExt, Event};
 
@@ -58,41 +59,41 @@ fn main() {
         .unwrap();
 
     let (d9, device) = unsafe { set_up_dx_context(window.get_hwnd() as _) };
-    let mut imgui = imgui::ImGui::init();
+    let mut imgui = imgui::Context::create();
     let mut renderer =
         imgui_dx9_renderer::Renderer::new(&mut imgui, unsafe { NonNull::new_unchecked(device) })
             .unwrap();
     {
         // Fix incorrect colors with sRGB framebuffer
-        fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
-            let x = col.x.powf(2.2);
-            let y = col.y.powf(2.2);
-            let z = col.z.powf(2.2);
-            let w = 1.0 - (1.0 - col.w).powf(2.2);
-            ImVec4::new(x, y, z, w)
+        fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
+            [
+                col[0].powf(2.2),
+                col[1].powf(2.2),
+                col[2].powf(2.2),
+                1.0 - (1.0 - col[3]).powf(2.2),
+            ]
         }
 
         let style = imgui.style_mut();
         for col in 0..style.colors.len() {
-            style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
+            //style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
         }
     }
-    let hidpi_factor = window.get_hidpi_factor().round();
+    let mut platform = WinitPlatform::init(&mut imgui);
+    platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
 
+    let hidpi_factor = platform.hidpi_factor();
     let font_size = (13.0 * hidpi_factor) as f32;
+    imgui.fonts().add_font(&[FontSource::DefaultFontData {
+        config: Some(FontConfig {
+            size_pixels: font_size,
+            ..FontConfig::default()
+        }),
+    }]);
 
-    imgui.fonts().add_default_font_with_config(
-        ImFontConfig::new()
-            .oversample_h(1)
-            .pixel_snap_h(true)
-            .size_pixels(font_size),
-    );
-
-    imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
+    imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
 
     imgui.set_ini_filename(None);
-
-    imgui_winit_support::configure_keys(&mut imgui);
 
     let mut last_frame = Instant::now();
     let mut quit = false;
@@ -100,12 +101,7 @@ fn main() {
 
     loop {
         events_loop.poll_events(|event| {
-            imgui_winit_support::handle_event(
-                &mut imgui,
-                &event,
-                window.get_hidpi_factor(),
-                hidpi_factor,
-            );
+            platform.handle_event(imgui.io_mut(), &window, &event);
             use winit::WindowEvent;
 
             if let Event::WindowEvent { event, .. } = event {
@@ -137,13 +133,15 @@ fn main() {
         let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
         last_frame = now;
 
-        imgui_winit_support::update_mouse_cursor(&imgui, &window);
+        let io = imgui.io_mut();
+        platform
+            .prepare_frame(io, &window)
+            .expect("Failed to start frame");
+        io.update_delta_time(last_frame);
 
-        let frame_size = imgui_winit_support::get_frame_size(&window, hidpi_factor).unwrap();
-
-        let ui = imgui.frame(frame_size, delta_s);
+        let mut ui = imgui.frame();
         ui.window(im_str!("Hello world"))
-            .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
+            .size([300.0, 100.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 ui.text(im_str!("Hello world!"));
                 ui.text(im_str!("こんにちは世界！"));
@@ -157,7 +155,7 @@ fn main() {
                 ));
             });
         ui.window(im_str!("Hello wo4rld"))
-            .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
+            .size([300.0, 100.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 ui.text(im_str!("Hello world!"));
                 ui.text(im_str!("This...is...imgui-rs!"));
