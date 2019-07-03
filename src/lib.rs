@@ -3,15 +3,15 @@
 #![deny(missing_docs)]
 //! This crate offers a DirectX 9 renderer for the imgui-rs rust bindings.
 
-pub use winapi::shared::d3d9::IDirect3DDevice9;
-
 use imgui::{
-    internal::RawWrapper, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx, ImString, TextureId,
+    internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
+    ImString, TextureId,
 };
+
 use winapi::shared::{
     d3d9::{
-        IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
-        LPDIRECT3DTEXTURE9,
+        IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9,
+        LPDIRECT3DSTATEBLOCK9, LPDIRECT3DTEXTURE9,
     },
     d3d9types::*,
     minwindef,
@@ -46,16 +46,16 @@ type Result<T> = core::result::Result<T, RendererError>;
 /// The error type returned by the renderer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RendererError {
-    /// The renderer failed to create the index buffer
-    IndexCreation,
-    /// The renderer received an invalid texture id
-    InvalidTexture,
-    /// The renderer failed to backup the dx9 state
-    StateBackup,
     /// The renderer failed to create the font texture
     TextureCreation,
+    /// The renderer failed to create the index buffer
+    IndexCreation,
     /// The renderer failed to create the vertex buffer
     VertexCreation,
+    /// The renderer received an invalid texture id
+    InvalidTexture(usize),
+    /// The renderer failed to backup the dx9 state
+    StateBackup,
     /// The renderer failed to write to the buffers
     WriteBuffer,
 }
@@ -63,11 +63,11 @@ pub enum RendererError {
 impl fmt::Display for RendererError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            RendererError::IndexCreation => write!(f, "failed to create index buffer"),
-            RendererError::InvalidTexture => write!(f, "failed to find texture"),
-            RendererError::StateBackup => write!(f, "failed to backup dx9 state"),
-            RendererError::TextureCreation => write!(f, "failed to create font texture"),
             RendererError::VertexCreation => write!(f, "failed to create vertex buffer"),
+            RendererError::IndexCreation => write!(f, "failed to create index buffer"),
+            RendererError::TextureCreation => write!(f, "failed to create font texture"),
+            RendererError::InvalidTexture(id) => write!(f, "failed to find texture with id {}", id),
+            RendererError::StateBackup => write!(f, "failed to backup dx9 state"),
             RendererError::WriteBuffer => write!(f, "failed to write to buffer"),
         }
     }
@@ -97,10 +97,11 @@ impl Renderer {
         unsafe {
             let font_tex = Self::create_font_texture(ctx.fonts(), device)?;
             (device.as_mut()).AddRef();
-            ctx.set_renderer_name(Some(ImString::new(concat!(
+            ctx.io_mut().backend_flags |= BackendFlags::RENDERER_HAS_VTX_OFFSET;
+            ctx.set_renderer_name(ImString::new(concat!(
                 "imgui_dx9_renderer@",
                 env!("CARGO_PKG_VERSION")
-            ))));
+            )));
             Ok(Renderer {
                 device,
                 font_tex,
@@ -139,6 +140,8 @@ impl Renderer {
     unsafe fn render_impl(&mut self, draw_data: &DrawData) -> Result<()> {
         let clip_off = draw_data.display_pos;
         let clip_scale = draw_data.framebuffer_scale;
+        let mut vertex_offset = 0;
+        let mut index_offset = 0;
         for draw_list in draw_data.draw_lists() {
             for cmd in draw_list.commands() {
                 match cmd {
@@ -148,8 +151,7 @@ impl Renderer {
                             DrawCmdParams {
                                 clip_rect,
                                 texture_id,
-                                vtx_offset,
-                                idx_offset,
+                                ..
                             },
                     } => {
                         let r: RECT = RECT {
@@ -161,18 +163,19 @@ impl Renderer {
                         let texture = if texture_id.id() == FONT_TEX_ID {
                             self.font_tex.0
                         } else {
-                            return Err(RendererError::InvalidTexture);
+                            return Err(RendererError::InvalidTexture(texture_id.id()));
                         };
                         (self.device.as_mut()).SetTexture(0, texture as _);
                         (self.device.as_mut()).SetScissorRect(&r);
                         (self.device.as_mut()).DrawIndexedPrimitive(
                             D3DPT_TRIANGLELIST,
-                            vtx_offset as _,
+                            vertex_offset as i32,
                             0,
                             draw_list.vtx_buffer().len() as u32,
-                            idx_offset as _,
+                            index_offset as u32,
                             count as u32 / 3,
                         );
+                        index_offset += count;
                     },
                     DrawCmd::ResetRenderState => self.set_render_state(draw_data),
                     DrawCmd::RawCallback { callback, raw_cmd } => {
@@ -180,6 +183,7 @@ impl Renderer {
                     },
                 }
             }
+            vertex_offset += draw_list.vtx_buffer().len();
         }
         Ok(())
     }
@@ -257,51 +261,50 @@ impl Renderer {
         );
         let mut vtx_dst: *mut CustomVertex = ptr::null_mut();
         let mut idx_dst: *mut DrawIdx = ptr::null_mut();
+
         if (*vb.as_ptr()).Lock(
             0,
             (draw_data.total_vtx_count as usize * mem::size_of::<CustomVertex>()) as u32,
             &mut vtx_dst as *mut _ as _,
             D3DLOCK_DISCARD,
-        ) < 0
+        ) != D3D_OK
+            || (*ib.as_ptr()).Lock(
+                0,
+                (draw_data.total_idx_count as usize * mem::size_of::<DrawIdx>()) as u32,
+                &mut idx_dst as *mut _ as _,
+                D3DLOCK_DISCARD,
+            ) != D3D_OK
         {
-            return Err(RendererError::WriteBuffer);
-        }
-        if (*ib.as_ptr()).Lock(
-            0,
-            (draw_data.total_idx_count as usize * mem::size_of::<DrawIdx>()) as u32,
-            &mut idx_dst as *mut _ as _,
-            D3DLOCK_DISCARD,
-        ) < 0
-        {
-            return Err(RendererError::WriteBuffer);
-        }
-        for draw_list in draw_data.draw_lists() {
-            for vertex in draw_list.vtx_buffer() {
-                *vtx_dst = CustomVertex {
-                    pos: [vertex.pos[0], vertex.pos[1], 0.0],
-                    col: [vertex.col[2], vertex.col[1], vertex.col[0], vertex.col[3]],
-                    uv: [vertex.uv[0], vertex.uv[1]],
-                };
-                vtx_dst = vtx_dst.add(1);
+            Err(RendererError::WriteBuffer)
+        } else {
+            for draw_list in draw_data.draw_lists() {
+                for vertex in draw_list.vtx_buffer() {
+                    *vtx_dst = CustomVertex {
+                        pos: [vertex.pos[0], vertex.pos[1], 0.0],
+                        col: [vertex.col[2], vertex.col[1], vertex.col[0], vertex.col[3]],
+                        uv: [vertex.uv[0], vertex.uv[1]],
+                    };
+                    vtx_dst = vtx_dst.add(1);
+                }
+                ptr::copy(
+                    draw_list.idx_buffer().as_ptr(),
+                    idx_dst as _,
+                    draw_list.idx_buffer().len(),
+                );
+                idx_dst = idx_dst.add(draw_list.idx_buffer().len());
             }
-            ptr::copy(
-                draw_list.idx_buffer().as_ptr(),
-                idx_dst as _,
-                draw_list.idx_buffer().len(),
+            (*vb.as_ptr()).Unlock();
+            (*ib.as_ptr()).Unlock();
+            self.device.as_mut().SetStreamSource(
+                0,
+                vb.as_ptr(),
+                0,
+                mem::size_of::<CustomVertex>() as u32,
             );
-            idx_dst = idx_dst.add(draw_list.idx_buffer().len());
+            self.device.as_mut().SetIndices(ib.as_ptr());
+            self.device.as_mut().SetFVF(D3DFVF_CUSTOMVERTEX);
+            Ok(())
         }
-        (*vb.as_ptr()).Unlock();
-        (*ib.as_ptr()).Unlock();
-        self.device.as_mut().SetStreamSource(
-            0,
-            vb.as_ptr(),
-            0,
-            mem::size_of::<CustomVertex>() as u32,
-        );
-        self.device.as_mut().SetIndices(ib.as_ptr());
-        self.device.as_mut().SetFVF(D3DFVF_CUSTOMVERTEX);
-        Ok(())
     }
 
     unsafe fn recreate_vertex_buffer(&mut self, draw_data: &DrawData) -> Result<()> {

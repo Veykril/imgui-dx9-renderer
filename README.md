@@ -17,7 +17,7 @@ let device = NonNull::new(device).expect("the directx device was null");
 let mut renderer = imgui_dx9_renderer::Renderer::new(&mut imgui, device)
     .expect("imgui dx9 renderer creation failed");
 ```
-Then in your rendering loop it's as easy as calling `renderer.render(ui)`.
+Then in your rendering loop it's as easy as calling `renderer.render(ui.render())`.
 
 ## License
 
