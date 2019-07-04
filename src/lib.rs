@@ -3,6 +3,8 @@
 #![deny(missing_docs)]
 //! This crate offers a DirectX 9 renderer for the imgui-rs rust bindings.
 
+pub use winapi::shared::d3d9::IDirect3DDevice9;
+
 use imgui::{
     internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
     ImString, TextureId,
@@ -10,8 +12,8 @@ use imgui::{
 
 use winapi::shared::{
     d3d9::{
-        IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9,
-        LPDIRECT3DSTATEBLOCK9, LPDIRECT3DTEXTURE9,
+        IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
+        LPDIRECT3DTEXTURE9,
     },
     d3d9types::*,
     minwindef,
