@@ -1,13 +1,13 @@
 #![cfg(windows)]
 #![forbid(rust_2018_idioms)]
 #![deny(missing_docs)]
-//! This crate offers a DirectX 9 renderer for the imgui-rs rust bindings.
+//! This crate offers a DirectX 9 renderer for the [imgui-rs](https://docs.rs/imgui/*/imgui/) rust bindings.
 
-pub use winapi::shared::d3d9::IDirect3DDevice9;
+pub use winapi::shared::d3d9::{IDirect3DDevice9, LPDIRECT3DBASETEXTURE9};
 
 use imgui::{
     internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
-    ImString, TextureId,
+    ImString, TextureId, Textures,
 };
 
 use winapi::shared::{
@@ -35,6 +35,15 @@ const D3DFVF_CUSTOMVERTEX: u32 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
 const FALSE: u32 = minwindef::FALSE as u32;
 const TRUE: u32 = minwindef::TRUE as u32;
+
+static MAT_IDENTITY: D3DMATRIX = D3DMATRIX {
+    m: [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+};
 
 #[repr(C)]
 struct CustomVertex {
@@ -77,12 +86,13 @@ impl fmt::Display for RendererError {
 
 impl std::error::Error for RendererError {}
 
-/// A DirectX 9 renderer for Imgui-rs.
+/// A DirectX 9 renderer for (Imgui-rs)[https://docs.rs/imgui/*/imgui/].
 pub struct Renderer {
     device: NonNull<IDirect3DDevice9>,
-    font_tex: Texture,
+    font_tex: FontTexture,
     vertex_buffer: Option<VertexBuffer>,
     index_buffer: Option<IndexBuffer>,
+    textures: Textures<LPDIRECT3DBASETEXTURE9>,
 }
 
 impl Renderer {
@@ -109,8 +119,25 @@ impl Renderer {
                 font_tex,
                 vertex_buffer: None,
                 index_buffer: None,
+                textures: Textures::new(),
             })
         }
+    }
+
+    /// The textures registry of this renderer.
+    ///
+    /// # Safety
+    ///
+    /// Mutable access is unsafe since the renderer assumes that the texture
+    /// handles inside of it are valid until they are removed manually.
+    /// Failure to keep this invariant in check will cause UB.
+    pub unsafe fn textures_mut(&mut self) -> &mut Textures<LPDIRECT3DBASETEXTURE9> {
+        &mut self.textures
+    }
+
+    /// The textures registry of this renderer.
+    pub fn textures(&mut self) -> &mut Textures<LPDIRECT3DBASETEXTURE9> {
+        &mut self.textures
     }
 
     /// Renders the given [`Ui`] with this renderer.
@@ -144,6 +171,7 @@ impl Renderer {
         let clip_scale = draw_data.framebuffer_scale;
         let mut vertex_offset = 0;
         let mut index_offset = 0;
+        let mut last_tex = ptr::null_mut();
         for draw_list in draw_data.draw_lists() {
             for cmd in draw_list.commands() {
                 match cmd {
@@ -162,12 +190,19 @@ impl Renderer {
                             right: ((clip_rect[2] - clip_off[0]) * clip_scale[0]) as _,
                             bottom: ((clip_rect[3] - clip_off[1]) * clip_scale[1]) as _,
                         };
+
                         let texture = if texture_id.id() == FONT_TEX_ID {
-                            self.font_tex.0
+                            self.font_tex.0 as LPDIRECT3DBASETEXTURE9
                         } else {
-                            return Err(RendererError::InvalidTexture(texture_id.id()));
+                            *self
+                                .textures
+                                .get(texture_id)
+                                .ok_or_else(|| RendererError::InvalidTexture(texture_id.id()))?
                         };
-                        (self.device.as_mut()).SetTexture(0, texture as _);
+                        if last_tex != texture {
+                            (self.device.as_mut()).SetTexture(0, texture);
+                            last_tex = texture;
+                        }
                         (self.device.as_mut()).SetScissorRect(&r);
                         (self.device.as_mut()).DrawIndexedPrimitive(
                             D3DPT_TRIANGLELIST,
@@ -231,14 +266,6 @@ impl Renderer {
         let r = draw_data.display_pos[0] + draw_data.display_size[0] + 0.5;
         let t = draw_data.display_pos[1] + 0.5;
         let b = draw_data.display_pos[1] + draw_data.display_size[1] + 0.5;
-        let mat_identity = D3DMATRIX {
-            m: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ],
-        };
         let mat_projection = D3DMATRIX {
             m: [
                 [2.0 / (r - l), 0.0, 0.0, 0.0],
@@ -247,8 +274,8 @@ impl Renderer {
                 [(l + r) / (l - r), (t + b) / (b - t), 0.5, 1.0],
             ],
         };
-        device.SetTransform(D3DTS_WORLD, &mat_identity);
-        device.SetTransform(D3DTS_VIEW, &mat_identity);
+        device.SetTransform(D3DTS_WORLD, &MAT_IDENTITY);
+        device.SetTransform(D3DTS_VIEW, &MAT_IDENTITY);
         device.SetTransform(D3DTS_PROJECTION, &mat_projection);
     }
 
@@ -358,7 +385,7 @@ impl Renderer {
     unsafe fn create_font_texture(
         mut fonts: imgui::FontAtlasRefMut<'_>,
         mut device: NonNull<IDirect3DDevice9>,
-    ) -> Result<Texture> {
+    ) -> Result<FontTexture> {
         let texture = fonts.build_rgba32_texture();
         let mut texture_handle: LPDIRECT3DTEXTURE9 = ptr::null_mut();
         let mut tex_locked_rect: D3DLOCKED_RECT = D3DLOCKED_RECT {
@@ -385,7 +412,7 @@ impl Renderer {
 
             (*texture_handle).UnlockRect(0);
             fonts.tex_id = TextureId::from(FONT_TEX_ID);
-            Ok(Texture(texture_handle))
+            Ok(FontTexture(texture_handle))
         }
     }
 }
@@ -396,9 +423,9 @@ impl Drop for Renderer {
     }
 }
 
-struct Texture(LPDIRECT3DTEXTURE9);
+struct FontTexture(LPDIRECT3DTEXTURE9);
 
-impl Drop for Texture {
+impl Drop for FontTexture {
     fn drop(&mut self) {
         unsafe { (*self.0).Release() };
     }
@@ -454,7 +481,6 @@ struct StateBackup {
 
 impl StateBackup {
     unsafe fn backup(device: LPDIRECT3DDEVICE9) -> Result<Self> {
-        // FIXME: Use MaybeUninit once its stable
         let mut this = ManuallyDrop::<Self>::new(mem::zeroed());
         this.device = device;
         if (*device).CreateStateBlock(D3DSBT_ALL, &mut this.state_block) < 0 {

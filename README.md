@@ -19,6 +19,12 @@ let mut renderer = imgui_dx9_renderer::Renderer::new(&mut imgui, device)
 ```
 Then in your rendering loop it's as easy as calling `renderer.render(ui.render())`.
 
+## Documentation
+
+The crate is documented but imgui-rs doesn't currently build on docs.rs
+for the windows target. Due to this one has to either build it
+themselves or look into the source itself.
+
 ## License
 
 Licensed under the MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
