@@ -58,33 +58,21 @@ struct CustomVertex {
 type Result<T> = core::result::Result<T, RendererError>;
 
 /// The error type returned by the renderer.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RendererError {
-    /// The renderer failed to create the font texture
-    TextureCreation,
-    /// The renderer failed to create the index buffer
-    IndexCreation,
-    /// The renderer failed to create the vertex buffer
-    VertexCreation,
+    /// The directx device ran out of memory
+    OutOfMemory,
     /// The renderer received an invalid texture id
     InvalidTexture(TextureId),
-    /// The renderer failed to backup the dx9 state
-    StateBackup,
-    /// The renderer failed to write to the buffers
-    WriteBuffer,
 }
 
 impl fmt::Display for RendererError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            RendererError::VertexCreation => write!(f, "failed to create vertex buffer"),
-            RendererError::IndexCreation => write!(f, "failed to create index buffer"),
-            RendererError::TextureCreation => write!(f, "failed to create font texture"),
+            RendererError::OutOfMemory => write!(f, "device ran out of memory"),
             RendererError::InvalidTexture(id) => {
                 write!(f, "failed to find texture with id {:?}", id)
             },
-            RendererError::StateBackup => write!(f, "failed to backup dx9 state"),
-            RendererError::WriteBuffer => write!(f, "failed to write to buffer"),
         }
     }
 }
@@ -324,7 +312,7 @@ impl Renderer {
             } else if ib_locked {
                 ib.Unlock();
             }
-            Err(RendererError::WriteBuffer)
+            Err(RendererError::OutOfMemory)
         }
     }
 
@@ -378,11 +366,11 @@ impl Renderer {
             ptr::null_mut(),
         ) < 0
         {
-            Err(RendererError::VertexCreation)
+            Err(RendererError::OutOfMemory)
         } else {
             NonNull::new(slice::from_raw_parts_mut(vertex_buffer, len))
                 .map(VertexBuffer)
-                .ok_or(RendererError::VertexCreation)
+                .ok_or(RendererError::OutOfMemory)
         }
     }
 
@@ -405,11 +393,11 @@ impl Renderer {
             ptr::null_mut(),
         ) < 0
         {
-            Err(RendererError::IndexCreation)
+            Err(RendererError::OutOfMemory)
         } else {
             NonNull::new(slice::from_raw_parts_mut(index_buffer, len))
                 .map(IndexBuffer)
-                .ok_or(RendererError::IndexCreation)
+                .ok_or(RendererError::OutOfMemory)
         }
     }
 
@@ -446,7 +434,7 @@ impl Renderer {
             fonts.tex_id = TextureId::from(FONT_TEX_ID);
             Ok(FontTexture(texture_handle))
         } else {
-            Err(RendererError::TextureCreation)
+            Err(RendererError::OutOfMemory)
         }
     }
 }
@@ -521,7 +509,7 @@ impl StateBackup {
         let mut this = ManuallyDrop::<Self>::new(mem::zeroed());
         this.device = device;
         if (*device).CreateStateBlock(D3DSBT_ALL, &mut this.state_block) < 0 {
-            Err(RendererError::StateBackup)
+            Err(RendererError::OutOfMemory)
         } else {
             (*device).GetTransform(D3DTS_WORLD, &mut this.last_world);
             (*device).GetTransform(D3DTS_VIEW, &mut this.last_view);
