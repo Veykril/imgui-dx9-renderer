@@ -427,8 +427,17 @@ impl Renderer {
         if tex_created
             && (*texture_handle).LockRect(0, &mut tex_locked_rect, ptr::null_mut(), 0) == D3D_OK
         {
-            slice::from_raw_parts_mut(tex_locked_rect.pBits as *mut u8, texture.data.len())
-                .copy_from_slice(texture.data);
+            let bits = tex_locked_rect.pBits as *mut u8;
+            let pitch = tex_locked_rect.Pitch as usize;
+            let height = texture.height as usize;
+            let width = texture.width as usize;
+
+            for y in 0..height {
+                let d3d9_memory = bits.add(pitch * y);
+                let pixels = texture.data.as_ptr();
+                let pixels = pixels.add((width * 4) * y);
+                std::ptr::copy(pixels, d3d9_memory, width * 4);
+            }
 
             (*texture_handle).UnlockRect(0);
             fonts.tex_id = TextureId::from(FONT_TEX_ID);
