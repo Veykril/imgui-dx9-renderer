@@ -126,9 +126,9 @@ fn main() {
         last_frame = io.update_delta_time(last_frame);
 
         let ui = imgui.frame();
-        ui.window(im_str!("Hello world"))
+        imgui::Window::new(im_str!("Hello world"))
             .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-            .build(|| {
+            .build(&ui, || {
                 ui.text(im_str!("Hello world!"));
                 ui.text(im_str!("This...is...imgui-rs!"));
                 ui.separator();
