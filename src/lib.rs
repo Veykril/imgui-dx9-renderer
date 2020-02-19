@@ -10,22 +10,16 @@ use imgui::{
     ImString, TextureId, Textures,
 };
 
-use winapi::shared::{
-    d3d9::{
-        IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
-        LPDIRECT3DTEXTURE9,
-    },
-    d3d9types::*,
-    minwindef,
-    windef::RECT,
+use winapi::shared::d3d9::{
+    IDirect3DIndexBuffer9, IDirect3DVertexBuffer9, LPDIRECT3DDEVICE9, LPDIRECT3DSTATEBLOCK9,
+    LPDIRECT3DTEXTURE9,
 };
+use winapi::shared::{d3d9types::*, minwindef, windef::RECT};
 
-use core::{
-    fmt,
-    mem::{self, ManuallyDrop},
-    ptr::{self, NonNull},
-    slice,
-};
+use core::fmt;
+use core::mem::{self, ManuallyDrop};
+use core::ptr::{self, NonNull};
+use core::slice;
 
 const FONT_TEX_ID: usize = !0;
 

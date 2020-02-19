@@ -1,10 +1,18 @@
 use imgui::{im_str, FontConfig, FontSource};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winapi::shared::{d3d9::*, d3d9caps::*, d3d9types::*, windef::HWND};
-use winit::{dpi::LogicalSize, os::windows::WindowExt, Event};
+use winit::{
+    dpi::LogicalSize,
+    event::{Event, WindowEvent},
+    event_loop::EventLoop,
+    window::WindowBuilder,
+};
 
-use core::ptr;
-use std::{ptr::NonNull, time::Instant};
+use std::{
+    ptr::{self, NonNull},
+    time::Instant,
+};
 
 const WINDOW_WIDTH: f64 = 760.0;
 const WINDOW_HEIGHT: f64 = 760.0;
@@ -46,18 +54,22 @@ unsafe fn set_up_dx_context(hwnd: HWND) -> (LPDIRECT3D9, LPDIRECT3DDEVICE9) {
 }
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
-    let window = winit::WindowBuilder::new()
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
         .with_title("imgui_dx9_renderer winit example")
         .with_resizable(false)
-        .with_dimensions(LogicalSize {
+        .with_inner_size(LogicalSize {
             width: WINDOW_WIDTH,
             height: WINDOW_HEIGHT,
         })
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
-
-    let (d9, device) = unsafe { set_up_dx_context(window.get_hwnd() as _) };
+    let hwnd = if let RawWindowHandle::Windows(handle) = window.raw_window_handle() {
+        handle.hwnd
+    } else {
+        unreachable!()
+    };
+    let (d9, device) = unsafe { set_up_dx_context(hwnd as _) };
     let mut imgui = imgui::Context::create();
     let mut renderer =
         imgui_dx9_renderer::Renderer::new(&mut imgui, unsafe { NonNull::new_unchecked(device) })
@@ -95,61 +107,58 @@ fn main() {
     imgui.set_ini_filename(None);
 
     let mut last_frame = Instant::now();
-    let mut quit = false;
-    events_loop.poll_events(|_| {});
 
-    loop {
-        events_loop.poll_events(|event| {
-            platform.handle_event(imgui.io_mut(), &window, &event);
-            use winit::WindowEvent;
-
-            if let Event::WindowEvent { event, .. } = event {
-                match event {
-                    WindowEvent::Resized(_) => unimplemented!(),
-                    WindowEvent::CloseRequested => quit = true,
-                    _ => (),
-                }
+    event_loop.run(move |event, _, control_flow| match event {
+        Event::NewEvents(_) => last_frame = imgui.io_mut().update_delta_time(last_frame),
+        Event::MainEventsCleared => {
+            let io = imgui.io_mut();
+            platform
+                .prepare_frame(io, &window)
+                .expect("Failed to start frame");
+            last_frame = io.update_delta_time(last_frame);
+            window.request_redraw();
+        },
+        Event::RedrawRequested(_) => {
+            unsafe {
+                (&*device).Clear(0, ptr::null_mut(), D3DCLEAR_TARGET, 0xFF10_1010, 1.0, 0);
+                (&*device).BeginScene();
             }
-        });
-        if quit {
-            break;
-        }
-        unsafe {
-            (&*device).Clear(0, ptr::null_mut(), D3DCLEAR_TARGET, 0xFF101010, 1.0, 0);
-            (&*device).BeginScene();
-        }
 
-        let io = imgui.io_mut();
-        platform
-            .prepare_frame(io, &window)
-            .expect("Failed to start frame");
-        last_frame = io.update_delta_time(last_frame);
-
-        let ui = imgui.frame();
-        imgui::Window::new(im_str!("Hello world"))
-            .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-            .build(&ui, || {
-                ui.text(im_str!("Hello world!"));
-                ui.text(im_str!("This...is...imgui-rs!"));
-                ui.separator();
-                let mouse_pos = ui.io().mouse_pos;
-                ui.text(im_str!(
-                    "Mouse Position: ({:.1},{:.1})",
-                    mouse_pos[0],
-                    mouse_pos[1]
-                ));
-            });
-        renderer.render(ui.render()).unwrap();
-        unsafe {
-            (&*device).EndScene();
-            (&*device).Present(
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-        }
-    }
-
-    unsafe { (&*d9).Release() };
+            let ui = imgui.frame();
+            imgui::Window::new(im_str!("Hello world"))
+                .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+                .build(&ui, || {
+                    ui.text(im_str!("Hello world!"));
+                    ui.text(im_str!("This...is...imgui-rs!"));
+                    ui.separator();
+                    let mouse_pos = ui.io().mouse_pos;
+                    ui.text(im_str!(
+                        "Mouse Position: ({:.1},{:.1})",
+                        mouse_pos[0],
+                        mouse_pos[1]
+                    ));
+                });
+            platform.prepare_render(&ui, &window);
+            renderer.render(ui.render()).unwrap();
+            unsafe {
+                (&*device).EndScene();
+                (&*device).Present(
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+        },
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => *control_flow = winit::event_loop::ControlFlow::Exit,
+        Event::LoopDestroyed => unsafe {
+            (&*d9).Release();
+        },
+        event => {
+            platform.handle_event(imgui.io_mut(), &window, &event);
+        },
+    });
 }
