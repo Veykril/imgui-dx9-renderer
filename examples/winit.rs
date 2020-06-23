@@ -77,6 +77,9 @@ fn main() {
     {
         // Fix incorrect colors with sRGB framebuffer
         fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
+            dbg!(col[3]);
+            dbg!(col[3].powf(2.2));
+            dbg!(1.0 - (1.0 - col[3]).powf(2.2));
             [
                 col[0].powf(2.2),
                 col[1].powf(2.2),
@@ -87,7 +90,7 @@ fn main() {
 
         let style = imgui.style_mut();
         for col in 0..style.colors.len() {
-            style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
+            //style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
         }
     }
     let mut platform = WinitPlatform::init(&mut imgui);
@@ -120,12 +123,25 @@ fn main() {
         },
         Event::RedrawRequested(_) => {
             unsafe {
-                (&*device).Clear(0, ptr::null_mut(), D3DCLEAR_TARGET, 0xFF10_1010, 1.0, 0);
+                (&*device).Clear(0, ptr::null_mut(), D3DCLEAR_TARGET, 0xFFAA_AAAA, 1.0, 0);
                 (&*device).BeginScene();
             }
 
             let ui = imgui.frame();
             imgui::Window::new(im_str!("Hello world"))
+                .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+                .build(&ui, || {
+                    ui.text(im_str!("Hello world!"));
+                    ui.text(im_str!("This...is...imgui-rs!"));
+                    ui.separator();
+                    let mouse_pos = ui.io().mouse_pos;
+                    ui.text(im_str!(
+                        "Mouse Position: ({:.1},{:.1})",
+                        mouse_pos[0],
+                        mouse_pos[1]
+                    ));
+                });
+            imgui::Window::new(im_str!("Helldo world"))
                 .size([300.0, 100.0], imgui::Condition::FirstUseEver)
                 .build(&ui, || {
                     ui.text(im_str!("Hello world!"));
