@@ -17,7 +17,7 @@ use winapi::shared::d3d9::{
 use winapi::shared::{d3d9types::*, minwindef, windef::RECT};
 
 use core::fmt;
-use core::mem::{self, ManuallyDrop};
+use core::mem;
 use core::ptr::{self, NonNull};
 use core::slice;
 
@@ -128,8 +128,8 @@ impl Renderer {
 
     /// The textures registry of this renderer.
     #[inline]
-    pub fn textures(&mut self) -> &mut Textures<LPDIRECT3DBASETEXTURE9> {
-        &mut self.textures
+    pub fn textures(&self) -> &Textures<LPDIRECT3DBASETEXTURE9> {
+        &self.textures
     }
 
     /// Renders the given [`Ui`] with this renderer.
@@ -500,24 +500,16 @@ impl Drop for IndexBuffer {
 }
 
 struct StateBackup {
-    device: LPDIRECT3DDEVICE9,
     state_block: LPDIRECT3DSTATEBLOCK9,
-    last_world: D3DMATRIX,
-    last_view: D3DMATRIX,
-    last_projection: D3DMATRIX,
 }
 
 impl StateBackup {
     unsafe fn backup(device: LPDIRECT3DDEVICE9) -> Result<Self> {
-        let mut this = ManuallyDrop::<Self>::new(mem::zeroed());
-        this.device = device;
-        if (*device).CreateStateBlock(D3DSBT_ALL, &mut this.state_block) < 0 {
+        let mut state_block = ptr::null_mut();
+        if (*device).CreateStateBlock(D3DSBT_ALL, &mut state_block) < 0 {
             Err(RendererError::OutOfMemory)
         } else {
-            (*device).GetTransform(D3DTS_WORLD, &mut this.last_world);
-            (*device).GetTransform(D3DTS_VIEW, &mut this.last_view);
-            (*device).GetTransform(D3DTS_PROJECTION, &mut this.last_projection);
-            Ok(ManuallyDrop::into_inner(this))
+            Ok(StateBackup { state_block })
         }
     }
 }
@@ -526,9 +518,6 @@ impl Drop for StateBackup {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            (*self.device).SetTransform(D3DTS_WORLD, &self.last_world);
-            (*self.device).SetTransform(D3DTS_VIEW, &self.last_view);
-            (*self.device).SetTransform(D3DTS_PROJECTION, &self.last_projection);
             (*self.state_block).Apply();
             (*self.state_block).Release();
         }
