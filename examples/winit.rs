@@ -9,10 +9,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use std::{
-    ptr::{self, NonNull},
-    time::Instant,
-};
+use std::{ptr, time::Instant};
 
 const WINDOW_WIDTH: f64 = 760.0;
 const WINDOW_HEIGHT: f64 = 760.0;
@@ -71,28 +68,9 @@ fn main() {
     };
     let (d9, device) = unsafe { set_up_dx_context(hwnd as _) };
     let mut imgui = imgui::Context::create();
-    let mut renderer =
-        imgui_dx9_renderer::Renderer::new(&mut imgui, unsafe { NonNull::new_unchecked(device) })
-            .unwrap();
-    {
-        // Fix incorrect colors with sRGB framebuffer
-        fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
-            dbg!(col[3]);
-            dbg!(col[3].powf(2.2));
-            dbg!(1.0 - (1.0 - col[3]).powf(2.2));
-            [
-                col[0].powf(2.2),
-                col[1].powf(2.2),
-                col[2].powf(2.2),
-                1.0 - (1.0 - col[3]).powf(2.2),
-            ]
-        }
-
-        let style = imgui.style_mut();
-        for col in 0..style.colors.len() {
-            //style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-        }
-    }
+    let mut renderer = unsafe {
+        imgui_dx9_renderer::Renderer::new(&mut imgui, wio::com::ComPtr::from_raw(device)).unwrap()
+    };
     let mut platform = WinitPlatform::init(&mut imgui);
     platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
 
