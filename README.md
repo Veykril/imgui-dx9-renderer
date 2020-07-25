@@ -7,15 +7,19 @@ DirectX 9 renderer for [imgui-rs](https://github.com/Gekkio/imgui-rs).
 
 ## Usage
 
-Creating the renderer only requires you to wrap the directx device in a
-[`NonNull`](https://doc.rust-lang.org/core/ptr/struct.NonNull.html).
-Internally the renderer will then add a reference through the COM api
-with [`IUnknown::AddRef`](https://docs.microsoft.com/en-us/windows/desktop/api/unknwn/nf-unknwn-iunknown-addref)
-and remove it again once dropped.
+This crate makes use of the ComPtr wrapper of the [wio](https://crates.io/crates/wio) crate.
+You have to either wrap your device pointer in one to pass it to the renderer `new` constructor or pass it to `new_raw` which will increment the ref count for you.
+
 ```rust
-let device = NonNull::new(device).expect("the directx device was null");
-let mut renderer = imgui_dx9_renderer::Renderer::new(&mut imgui, device)
-    .expect("imgui dx9 renderer creation failed");
+let device: *mut IDirect3DDevice9 = /* */;
+
+let mut renderer = unsafe {
+    imgui_dx9_renderer::Renderer::new(&mut imgui, wio::com::ComPtr::from_raw(device)).unwrap()
+};
+// or 
+let mut renderer = unsafe {
+    imgui_dx9_renderer::Renderer::new_raw(&mut imgui, device).unwrap()
+};
 ```
 Then in your rendering loop it's as easy as calling `renderer.render(ui.render())`.
 
