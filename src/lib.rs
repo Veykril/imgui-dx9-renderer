@@ -249,14 +249,14 @@ impl Renderer {
         device.SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE);
         device.SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
         device.SetRenderState(D3DRS_FOGENABLE, FALSE);
-        device.SetTextureStageState(FALSE, D3DTSS_COLOROP, D3DTOP_MODULATE);
-        device.SetTextureStageState(FALSE, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-        device.SetTextureStageState(FALSE, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-        device.SetTextureStageState(FALSE, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-        device.SetTextureStageState(FALSE, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-        device.SetTextureStageState(FALSE, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-        device.SetSamplerState(FALSE, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-        device.SetSamplerState(FALSE, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+        device.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        device.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+        device.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+        device.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+        device.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+        device.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+        device.SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+        device.SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 
         let l = draw_data.display_pos[0] + 0.5;
         let r = draw_data.display_pos[0] + draw_data.display_size[0] + 0.5;

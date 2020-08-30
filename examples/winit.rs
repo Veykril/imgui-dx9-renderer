@@ -68,9 +68,7 @@ fn main() {
     };
     let (d9, device) = unsafe { set_up_dx_context(hwnd as _) };
     let mut imgui = imgui::Context::create();
-    let mut renderer = unsafe {
-        imgui_dx9_renderer::Renderer::new(&mut imgui, wio::com::ComPtr::from_raw(device)).unwrap()
-    };
+    imgui.set_ini_filename(None);
     let mut platform = WinitPlatform::init(&mut imgui);
     platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
 
@@ -82,10 +80,11 @@ fn main() {
             ..FontConfig::default()
         }),
     }]);
-
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
 
-    imgui.set_ini_filename(None);
+    let mut renderer = unsafe {
+        imgui_dx9_renderer::Renderer::new(&mut imgui, wio::com::ComPtr::from_raw(device)).unwrap()
+    };
 
     let mut last_frame = Instant::now();
 
@@ -119,19 +118,7 @@ fn main() {
                         mouse_pos[1]
                     ));
                 });
-            imgui::Window::new(im_str!("Helldo world"))
-                .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-                .build(&ui, || {
-                    ui.text(im_str!("Hello world!"));
-                    ui.text(im_str!("This...is...imgui-rs!"));
-                    ui.separator();
-                    let mouse_pos = ui.io().mouse_pos;
-                    ui.text(im_str!(
-                        "Mouse Position: ({:.1},{:.1})",
-                        mouse_pos[0],
-                        mouse_pos[1]
-                    ));
-                });
+            ui.show_demo_window(&mut true);
             platform.prepare_render(&ui, &window);
             renderer.render(ui.render()).unwrap();
             unsafe {
