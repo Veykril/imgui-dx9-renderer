@@ -55,10 +55,7 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("imgui_dx9_renderer winit example")
         .with_resizable(false)
-        .with_inner_size(LogicalSize {
-            width: WINDOW_WIDTH,
-            height: WINDOW_HEIGHT,
-        })
+        .with_inner_size(LogicalSize { width: WINDOW_WIDTH, height: WINDOW_HEIGHT })
         .build(&event_loop)
         .unwrap();
     let hwnd = if let RawWindowHandle::Windows(handle) = window.raw_window_handle() {
@@ -75,10 +72,7 @@ fn main() {
     let hidpi_factor = platform.hidpi_factor();
     let font_size = (13.0 * hidpi_factor) as f32;
     imgui.fonts().add_font(&[FontSource::DefaultFontData {
-        config: Some(FontConfig {
-            size_pixels: font_size,
-            ..FontConfig::default()
-        }),
+        config: Some(FontConfig { size_pixels: font_size, ..FontConfig::default() }),
     }]);
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
 
@@ -96,9 +90,7 @@ fn main() {
         },
         Event::MainEventsCleared => {
             let io = imgui.io_mut();
-            platform
-                .prepare_frame(io, &window)
-                .expect("Failed to start frame");
+            platform.prepare_frame(io, &window).expect("Failed to start frame");
             window.request_redraw();
         },
         Event::RedrawRequested(_) => {
@@ -115,11 +107,7 @@ fn main() {
                     ui.text(im_str!("This...is...imgui-rs!"));
                     ui.separator();
                     let mouse_pos = ui.io().mouse_pos;
-                    ui.text(im_str!(
-                        "Mouse Position: ({:.1},{:.1})",
-                        mouse_pos[0],
-                        mouse_pos[1]
-                    ));
+                    ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
                 });
             ui.show_demo_window(&mut true);
             platform.prepare_render(&ui, &window);
@@ -134,10 +122,9 @@ fn main() {
                 );
             }
         },
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = winit::event_loop::ControlFlow::Exit,
+        Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+            *control_flow = winit::event_loop::ControlFlow::Exit
+        },
         Event::LoopDestroyed => unsafe {
             (&*d9).Release();
         },

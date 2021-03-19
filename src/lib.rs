@@ -35,12 +35,7 @@ const VERTEX_BUF_ADD_CAPACITY: usize = 5000;
 const INDEX_BUF_ADD_CAPACITY: usize = 10000;
 
 static MAT_IDENTITY: D3DMATRIX = D3DMATRIX {
-    m: [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-    ],
+    m: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
 };
 
 #[repr(C)]
@@ -173,12 +168,7 @@ impl Renderer {
                 match cmd {
                     DrawCmd::Elements {
                         count,
-                        cmd_params:
-                            DrawCmdParams {
-                                clip_rect,
-                                texture_id,
-                                ..
-                            },
+                        cmd_params: DrawCmdParams { clip_rect, texture_id, .. },
                     } => {
                         if texture_id != last_tex {
                             let texture = if texture_id.id() == FONT_TEX_ID {
@@ -307,10 +297,7 @@ impl Renderer {
     }
 
     unsafe fn write_buffers(&mut self, draw_data: &DrawData) -> Result<()> {
-        let (vb, ib) = (
-            &mut *self.vertex_buffer.0.as_raw(),
-            &mut *self.index_buffer.0.as_raw(),
-        );
+        let (vb, ib) = (&mut *self.vertex_buffer.0.as_raw(), &mut *self.index_buffer.0.as_raw());
 
         let (mut vtx_dst, mut idx_dst) = Self::lock_buffers(
             vb,
@@ -319,9 +306,8 @@ impl Renderer {
             draw_data.total_idx_count as usize,
         )?;
 
-        for (vbuf, ibuf) in draw_data
-            .draw_lists()
-            .map(|draw_list| (draw_list.vtx_buffer(), draw_list.idx_buffer()))
+        for (vbuf, ibuf) in
+            draw_data.draw_lists().map(|draw_list| (draw_list.vtx_buffer(), draw_list.idx_buffer()))
         {
             for (vertex, vtx_dst) in vbuf.iter().zip(vtx_dst.iter_mut()) {
                 *vtx_dst = CustomVertex {
@@ -336,8 +322,7 @@ impl Renderer {
         }
         vb.Unlock();
         ib.Unlock();
-        self.device
-            .SetStreamSource(0, vb, 0, mem::size_of::<CustomVertex>() as u32);
+        self.device.SetStreamSource(0, vb, 0, mem::size_of::<CustomVertex>() as u32);
         self.device.SetIndices(ib);
         self.device.SetFVF(D3DFVF_CUSTOMVERTEX);
         Ok(())
@@ -370,11 +355,7 @@ impl Renderer {
             device.CreateIndexBuffer(
                 (len * mem::size_of::<DrawIdx>()) as u32,
                 D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-                if mem::size_of::<DrawIdx>() == 2 {
-                    D3DFMT_INDEX16
-                } else {
-                    D3DFMT_INDEX32
-                },
+                if mem::size_of::<DrawIdx>() == 2 { D3DFMT_INDEX16 } else { D3DFMT_INDEX32 },
                 D3DPOOL_DEFAULT,
                 index_buffer,
                 ptr::null_mut(),
@@ -404,10 +385,7 @@ impl Renderer {
             )
         })?;
 
-        let mut locked_rect: D3DLOCKED_RECT = D3DLOCKED_RECT {
-            Pitch: 0,
-            pBits: ptr::null_mut(),
-        };
+        let mut locked_rect: D3DLOCKED_RECT = D3DLOCKED_RECT { Pitch: 0, pBits: ptr::null_mut() };
         hresult(texture_handle.LockRect(0, &mut locked_rect, ptr::null_mut(), 0))?;
 
         let bits = locked_rect.pBits as *mut u8;
