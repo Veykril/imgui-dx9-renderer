@@ -1,4 +1,6 @@
-use imgui::{im_str, FontConfig, FontSource};
+use std::{ptr, time::Instant};
+
+use imgui::{FontConfig, FontSource};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winapi::shared::{d3d9::*, d3d9caps::*, d3d9types::*, windef::HWND};
@@ -9,16 +11,12 @@ use winit::{
     window::WindowBuilder,
 };
 
-use std::{ptr, time::Instant};
-
 const WINDOW_WIDTH: f64 = 760.0;
 const WINDOW_HEIGHT: f64 = 760.0;
 
 unsafe fn set_up_dx_context(hwnd: HWND) -> (LPDIRECT3D9, LPDIRECT3DDEVICE9) {
     let d9 = Direct3DCreate9(D3D_SDK_VERSION);
-    if d9.is_null() {
-        panic!("Direct3DCreate9 failed");
-    }
+    assert!(!d9.is_null(), "Direct3DCreate9 failed");
     let mut present_params = D3DPRESENT_PARAMETERS {
         BackBufferCount: 1,
         MultiSampleType: D3DMULTISAMPLE_NONE,
@@ -44,9 +42,7 @@ unsafe fn set_up_dx_context(hwnd: HWND) -> (LPDIRECT3D9, LPDIRECT3DDEVICE9) {
         &mut present_params,
         &mut device,
     );
-    if r < 0 {
-        panic!("CreateDevice failed");
-    }
+    assert!(!(r < 0), "CreateDevice failed");
     (d9, device)
 }
 
@@ -100,14 +96,14 @@ fn main() {
             }
 
             let ui = imgui.frame();
-            imgui::Window::new(im_str!("Hello world"))
+            imgui::Window::new("Hello world")
                 .size([300.0, 100.0], imgui::Condition::FirstUseEver)
                 .build(&ui, || {
-                    ui.text(im_str!("Hello world!"));
-                    ui.text(im_str!("This...is...imgui-rs!"));
+                    ui.text("Hello world!");
+                    ui.text("This...is...imgui-rs!");
                     ui.separator();
                     let mouse_pos = ui.io().mouse_pos;
-                    ui.text(im_str!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
+                    ui.text(&format!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
                 });
             ui.show_demo_window(&mut true);
             platform.prepare_render(&ui, &window);

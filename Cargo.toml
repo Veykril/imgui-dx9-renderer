@@ -1,8 +1,8 @@
 [package]
 name = "imgui-dx9-renderer"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Lukas Wirth <lukastw97@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "DirectX 9 renderer for the imgui crate"
 homepage = "https://github.com/Veykril/imgui-dx9-renderer"
 repository = "https://github.com/Veykril/imgui-dx9-renderer"
@@ -11,14 +11,14 @@ readme = "README.md"
 categories = ["gui", "rendering"]
 
 [dependencies]
-winapi = { version = "^0.3", features = ["d3d9", "d3d9types", "windef"] }
+winapi = { version = "0.3", features = ["d3d9", "d3d9types", "windef"] }
 wio = "0.2"
-imgui = "0.7"
+imgui = "0.8"
 
 [dev-dependencies]
-imgui = "0.7"
-imgui-winit-support = "0.7"
-winit = "0.24"
+imgui = "0.8"
+imgui-winit-support = "0.8"
+winit = "0.25"
 raw-window-handle = "0.3"
 
 [package.metadata.docs.rs]

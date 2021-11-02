@@ -1,13 +1,15 @@
 #![cfg(windows)]
-#![forbid(rust_2018_idioms)]
 #![deny(missing_docs)]
 //! This crate offers a DirectX 9 renderer for the [imgui-rs](https://docs.rs/imgui/*/imgui/) rust bindings.
 
+use std::mem;
+use std::ptr;
+use std::slice;
+
 use imgui::{
     internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
-    ImString, TextureId, Textures,
+    TextureId, Textures,
 };
-
 use winapi::shared::d3d9::{
     IDirect3DBaseTexture9, IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DStateBlock9,
     IDirect3DTexture9, IDirect3DVertexBuffer9,
@@ -16,12 +18,7 @@ use winapi::shared::d3d9types::*;
 use winapi::shared::winerror::{DXGI_ERROR_INVALID_CALL, HRESULT, S_OK};
 use winapi::shared::{minwindef, windef::RECT};
 use winapi::Interface;
-
 use wio::com::ComPtr;
-
-use std::mem;
-use std::ptr;
-use std::slice;
 
 const FONT_TEX_ID: usize = !0;
 
@@ -84,7 +81,7 @@ impl Renderer {
     pub unsafe fn new(ctx: &mut Context, device: ComPtr<IDirect3DDevice9>) -> Result<Self> {
         let font_tex = Self::create_font_texture(ctx.fonts(), &device)?.up();
         ctx.io_mut().backend_flags |= BackendFlags::RENDERER_HAS_VTX_OFFSET;
-        ctx.set_renderer_name(ImString::new(concat!(
+        ctx.set_renderer_name(String::from(concat!(
             "imgui_dx9_renderer@",
             env!("CARGO_PKG_VERSION")
         )));
