@@ -101,7 +101,9 @@ fn main() {
         },
         Event::RedrawRequested(_) => {
             unsafe {
-                renderer.Clear(0, ptr::null_mut(), D3DCLEAR_TARGET as u32, 0xFFAA_AAAA, 1.0, 0).unwrap();
+                renderer
+                    .Clear(0, ptr::null_mut(), D3DCLEAR_TARGET as u32, 0xFFAA_AAAA, 1.0, 0)
+                    .unwrap();
                 renderer.BeginScene().unwrap();
             }
 
@@ -125,9 +127,6 @@ fn main() {
         },
         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
             *control_flow = winit::event_loop::ControlFlow::Exit
-        },
-        Event::LoopDestroyed => {
-            //d9.Release();
         },
         event => {
             platform.handle_event(imgui.io_mut(), &window, &event);
