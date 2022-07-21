@@ -84,7 +84,8 @@ fn main() {
     }]);
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
 
-    let mut renderer = unsafe { imgui_dx9_renderer::Renderer::new(&mut imgui, device).unwrap() };
+    let mut renderer =
+        unsafe { imgui_dx9_renderer::Renderer::new(&mut imgui, device.clone()).unwrap() };
 
     let mut last_frame = Instant::now();
 
@@ -101,10 +102,10 @@ fn main() {
         },
         Event::RedrawRequested(_) => {
             unsafe {
-                renderer
+                device
                     .Clear(0, ptr::null_mut(), D3DCLEAR_TARGET as u32, 0xFFAA_AAAA, 1.0, 0)
                     .unwrap();
-                renderer.BeginScene().unwrap();
+                device.BeginScene().unwrap();
             }
 
             let ui = imgui.frame();
@@ -121,8 +122,8 @@ fn main() {
             platform.prepare_render(&ui, &window);
             renderer.render(ui.render()).unwrap();
             unsafe {
-                renderer.EndScene().unwrap();
-                renderer.Present(ptr::null_mut(), ptr::null_mut(), None, ptr::null_mut()).unwrap();
+                device.EndScene().unwrap();
+                device.Present(ptr::null_mut(), ptr::null_mut(), None, ptr::null_mut()).unwrap();
             }
         },
         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
