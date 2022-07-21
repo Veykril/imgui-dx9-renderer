@@ -10,7 +10,18 @@ use imgui::{
     internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
     TextureId, Textures,
 };
-use windows::Win32::Graphics::Direct3D9::{IDirect3DBaseTexture9, IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DStateBlock9, IDirect3DTexture9, IDirect3DVertexBuffer9, D3DBLENDOP_ADD, D3DBLEND_INVSRCALPHA, D3DBLEND_SRCALPHA, D3DCULL_NONE, D3DFMT_A8R8G8B8, D3DFMT_INDEX16, D3DFMT_INDEX32, D3DLOCKED_RECT, D3DLOCK_DISCARD, D3DPOOL_DEFAULT, D3DPT_TRIANGLELIST, D3DRS_ALPHABLENDENABLE, D3DRS_ALPHATESTENABLE, D3DRS_BLENDOP, D3DRS_CULLMODE, D3DRS_DESTBLEND, D3DRS_FOGENABLE, D3DRS_LIGHTING, D3DRS_SCISSORTESTENABLE, D3DRS_SHADEMODE, D3DRS_SRCBLEND, D3DRS_ZENABLE, D3DSAMP_MAGFILTER, D3DSAMP_MINFILTER, D3DSBT_ALL, D3DSHADE_GOURAUD, D3DTEXF_LINEAR, D3DTOP_MODULATE, D3DTRANSFORMSTATETYPE, D3DTSS_ALPHAARG1, D3DTSS_ALPHAARG2, D3DTSS_ALPHAOP, D3DTSS_COLORARG1, D3DTSS_COLORARG2, D3DTSS_COLOROP, D3DTS_PROJECTION, D3DTS_VIEW, D3DUSAGE_DYNAMIC, D3DUSAGE_WRITEONLY, D3DVIEWPORT9, D3DRECT};
+use windows::Win32::Graphics::Direct3D9::{
+    IDirect3DBaseTexture9, IDirect3DDevice9, IDirect3DIndexBuffer9, IDirect3DStateBlock9,
+    IDirect3DTexture9, IDirect3DVertexBuffer9, D3DBLENDOP_ADD, D3DBLEND_INVSRCALPHA,
+    D3DBLEND_SRCALPHA, D3DCULL_NONE, D3DFMT_A8R8G8B8, D3DFMT_INDEX16, D3DFMT_INDEX32,
+    D3DLOCKED_RECT, D3DLOCK_DISCARD, D3DPOOL_DEFAULT, D3DPT_TRIANGLELIST, D3DRECT,
+    D3DRS_ALPHABLENDENABLE, D3DRS_ALPHATESTENABLE, D3DRS_BLENDOP, D3DRS_CULLMODE, D3DRS_DESTBLEND,
+    D3DRS_FOGENABLE, D3DRS_LIGHTING, D3DRS_SCISSORTESTENABLE, D3DRS_SHADEMODE, D3DRS_SRCBLEND,
+    D3DRS_ZENABLE, D3DSAMP_MAGFILTER, D3DSAMP_MINFILTER, D3DSBT_ALL, D3DSHADE_GOURAUD,
+    D3DTEXF_LINEAR, D3DTOP_MODULATE, D3DTRANSFORMSTATETYPE, D3DTSS_ALPHAARG1, D3DTSS_ALPHAARG2,
+    D3DTSS_ALPHAOP, D3DTSS_COLORARG1, D3DTSS_COLORARG2, D3DTSS_COLOROP, D3DTS_PROJECTION,
+    D3DTS_VIEW, D3DUSAGE_DYNAMIC, D3DUSAGE_WRITEONLY, D3DVIEWPORT9,
+};
 
 use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D::{D3DMATRIX, D3DMATRIX_0};
@@ -31,10 +42,7 @@ const INDEX_BUF_ADD_CAPACITY: usize = 10000;
 
 static MAT_IDENTITY: D3DMATRIX = D3DMATRIX {
     Anonymous: D3DMATRIX_0 {
-        m: [
-            1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32,
-            0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32,
-        ],
+        m: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
 };
 
@@ -91,7 +99,6 @@ impl Renderer {
         im_ctx: &mut imgui::Context,
         device: IDirect3DDevice9,
     ) -> Result<Self, ()> {
-        let device = device;
         Self::new(im_ctx, device)
     }
 
@@ -169,14 +176,16 @@ impl Renderer {
                             bottom: ((clip_rect[3] - clip_off[1]) * clip_scale[1]) as i32,
                         };
                         self.device.SetScissorRect(&r).unwrap();
-                        self.device.DrawIndexedPrimitive(
-                            D3DPT_TRIANGLELIST,
-                            vertex_offset as i32,
-                            0,
-                            draw_list.vtx_buffer().len() as u32,
-                            index_offset as u32,
-                            count as u32 / 3,
-                        ).unwrap();
+                        self.device
+                            .DrawIndexedPrimitive(
+                                D3DPT_TRIANGLELIST,
+                                vertex_offset as i32,
+                                0,
+                                draw_list.vtx_buffer().len() as u32,
+                                index_offset as u32,
+                                count as u32 / 3,
+                            )
+                            .unwrap();
                         index_offset += count;
                     },
                     DrawCmd::ResetRenderState => self.set_render_state(draw_data),
@@ -295,8 +304,6 @@ impl Renderer {
     }
 
     unsafe fn write_buffers(&mut self, draw_data: &DrawData) -> Result<(), ()> {
-        //let (vb, ib) = (&mut *self.vertex_buffer, &mut *self.index_buffer.0);
-
         let (mut vtx_dst, mut idx_dst) = Self::lock_buffers(
             &self.vertex_buffer.0,
             &self.index_buffer.0,
@@ -320,12 +327,9 @@ impl Renderer {
         }
         self.vertex_buffer.0.Unlock().unwrap();
         self.index_buffer.0.Unlock().unwrap();
-        self.device.SetStreamSource(
-            0,
-            &self.vertex_buffer.0,
-            0,
-            mem::size_of::<CustomVertex>() as u32,
-        ).unwrap();
+        self.device
+            .SetStreamSource(0, &self.vertex_buffer.0, 0, mem::size_of::<CustomVertex>() as u32)
+            .unwrap();
         self.device.SetIndices(&self.index_buffer.0).unwrap();
         self.device.SetFVF(D3DFVF_CUSTOMVERTEX).unwrap();
         Ok(())
@@ -419,7 +423,6 @@ impl Renderer {
         }
     }
 
-
     ///IDirect3DDevice9 wrapper
     #[allow(non_snake_case)]
     pub unsafe fn Clear(
@@ -429,24 +432,30 @@ impl Renderer {
         flags: u32,
         color: u32,
         z: f32,
-        stencil: u32
-    ) -> Result<(), ()>
-    {
-        match self.device.Clear(count ,prects, flags, color, z, stencil){Ok(_) => Ok(()), _ => Err(())}
+        stencil: u32,
+    ) -> Result<(), ()> {
+        match self.device.Clear(count, prects, flags, color, z, stencil) {
+            Ok(_) => Ok(()),
+            _ => Err(()),
+        }
     }
 
     ///IDirect3DDevice9 wrapper
     #[allow(non_snake_case)]
-    pub unsafe fn BeginScene(&self) -> Result<(), ()>
-    {
-        match self.device.BeginScene(){Ok(_) => Ok(()), _ => Err(())}
+    pub unsafe fn BeginScene(&self) -> Result<(), ()> {
+        match self.device.BeginScene() {
+            Ok(_) => Ok(()),
+            _ => Err(()),
+        }
     }
 
     ///IDirect3DDevice9 wrapper
     #[allow(non_snake_case)]
-    pub unsafe fn EndScene(&self) -> Result<(), ()>
-    {
-        match self.device.EndScene(){Ok(_) => Ok(()), _ => Err(())}
+    pub unsafe fn EndScene(&self) -> Result<(), ()> {
+        match self.device.EndScene() {
+            Ok(_) => Ok(()),
+            _ => Err(()),
+        }
     }
 
     ///IDirect3DDevice9 wrapper
@@ -456,13 +465,16 @@ impl Renderer {
         psourcerect: *const RECT,
         pdestrect: *const RECT,
         hdestwindowoverride: P0,
-        pdirtyregion: *const RGNDATA
-    ) -> Result<(), ()> where
+        pdirtyregion: *const RGNDATA,
+    ) -> Result<(), ()>
+    where
         P0: windows::core::IntoParam<'a, windows::Win32::Foundation::HWND>,
     {
-        match self.device.Present(psourcerect, pdestrect, hdestwindowoverride, pdirtyregion){Ok(_) => Ok(()), _ => Err(())}
+        match self.device.Present(psourcerect, pdestrect, hdestwindowoverride, pdirtyregion) {
+            Ok(_) => Ok(()),
+            _ => Err(()),
+        }
     }
-
 }
 
 struct StateBackup(IDirect3DStateBlock9);
