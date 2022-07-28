@@ -164,7 +164,7 @@ impl Renderer {
                             } else {
                                 self.textures.get(texture_id).ok_or(DXGI_ERROR_INVALID_CALL)?
                             };
-                            self.device.SetTexture(0, texture).unwrap();
+                            self.device.SetTexture(0, texture)?;
                             last_tex = texture_id;
                         }
 
@@ -174,20 +174,18 @@ impl Renderer {
                             right: ((clip_rect[2] - clip_off[0]) * clip_scale[0]) as i32,
                             bottom: ((clip_rect[3] - clip_off[1]) * clip_scale[1]) as i32,
                         };
-                        self.device.SetScissorRect(&r).unwrap();
-                        self.device
-                            .DrawIndexedPrimitive(
-                                D3DPT_TRIANGLELIST,
-                                vertex_offset as i32,
-                                0,
-                                draw_list.vtx_buffer().len() as u32,
-                                index_offset as u32,
-                                count as u32 / 3,
-                            )
-                            .unwrap();
+                        self.device.SetScissorRect(&r)?;
+                        self.device.DrawIndexedPrimitive(
+                            D3DPT_TRIANGLELIST,
+                            vertex_offset as i32,
+                            0,
+                            draw_list.vtx_buffer().len() as u32,
+                            index_offset as u32,
+                            count as u32 / 3,
+                        )?;
                         index_offset += count;
                     },
-                    DrawCmd::ResetRenderState => self.set_render_state(draw_data),
+                    DrawCmd::ResetRenderState => self.set_render_state(draw_data)?,
                     DrawCmd::RawCallback { callback, raw_cmd } => {
                         callback(draw_list.raw(), raw_cmd)
                     },
@@ -198,7 +196,7 @@ impl Renderer {
         Ok(())
     }
 
-    unsafe fn set_render_state(&mut self, draw_data: &DrawData) {
+    unsafe fn set_render_state(&mut self, draw_data: &DrawData) -> Result<()> {
         let fb_width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
         let fb_height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
 
@@ -212,28 +210,28 @@ impl Renderer {
         };
 
         let device = &self.device;
-        device.SetViewport(&vp).unwrap();
-        device.SetPixelShader(None).unwrap();
-        device.SetVertexShader(None).unwrap();
-        device.SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE.0 as u32).unwrap();
-        device.SetRenderState(D3DRS_LIGHTING, FALSE).unwrap();
-        device.SetRenderState(D3DRS_ZENABLE, FALSE).unwrap();
-        device.SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE).unwrap();
-        device.SetRenderState(D3DRS_ALPHATESTENABLE, FALSE).unwrap();
-        device.SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD.0 as u32).unwrap();
-        device.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA.0 as u32).unwrap();
-        device.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA.0 as u32).unwrap();
-        device.SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE).unwrap();
-        device.SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD.0 as u32).unwrap();
-        device.SetRenderState(D3DRS_FOGENABLE, FALSE).unwrap();
-        device.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE.0 as u32).unwrap();
-        device.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE).unwrap();
-        device.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE).unwrap();
-        device.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE.0 as u32).unwrap();
-        device.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE).unwrap();
-        device.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE).unwrap();
-        device.SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR.0 as u32).unwrap();
-        device.SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR.0 as u32).unwrap();
+        device.SetViewport(&vp)?;
+        device.SetPixelShader(None)?;
+        device.SetVertexShader(None)?;
+        device.SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE.0 as u32)?;
+        device.SetRenderState(D3DRS_LIGHTING, FALSE)?;
+        device.SetRenderState(D3DRS_ZENABLE, FALSE)?;
+        device.SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE)?;
+        device.SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)?;
+        device.SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD.0 as u32)?;
+        device.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA.0 as u32)?;
+        device.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA.0 as u32)?;
+        device.SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE)?;
+        device.SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD.0 as u32)?;
+        device.SetRenderState(D3DRS_FOGENABLE, FALSE)?;
+        device.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE.0 as u32)?;
+        device.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE)?;
+        device.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE)?;
+        device.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE.0 as u32)?;
+        device.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE)?;
+        device.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE)?;
+        device.SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR.0 as u32)?;
+        device.SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR.0 as u32)?;
 
         let l = draw_data.display_pos[0] + 0.5;
         let r = draw_data.display_pos[0] + draw_data.display_size[0] + 0.5;
@@ -262,9 +260,10 @@ impl Renderer {
             },
         };
 
-        device.SetTransform(D3DTRANSFORMSTATETYPE(0), &MAT_IDENTITY).unwrap();
-        device.SetTransform(D3DTS_VIEW, &MAT_IDENTITY).unwrap();
-        device.SetTransform(D3DTS_PROJECTION, &mat_projection).unwrap();
+        device.SetTransform(D3DTRANSFORMSTATETYPE(0), &MAT_IDENTITY)?;
+        device.SetTransform(D3DTS_VIEW, &MAT_IDENTITY)?;
+        device.SetTransform(D3DTS_PROJECTION, &mat_projection)?;
+        Ok(())
     }
 
     unsafe fn lock_buffers<'v, 'i>(
@@ -294,7 +293,7 @@ impl Renderer {
                 slice::from_raw_parts_mut(idx_dst, idx_count),
             )),
             Err(e) => {
-                vb.Unlock().unwrap();
+                vb.Unlock()?;
                 Err(e)
             },
         }
@@ -322,13 +321,16 @@ impl Renderer {
             vtx_dst = &mut vtx_dst[vbuf.len()..];
             idx_dst = &mut idx_dst[ibuf.len()..];
         }
-        self.vertex_buffer.0.Unlock().unwrap();
-        self.index_buffer.0.Unlock().unwrap();
-        self.device
-            .SetStreamSource(0, &self.vertex_buffer.0, 0, mem::size_of::<CustomVertex>() as u32)
-            .unwrap();
-        self.device.SetIndices(&self.index_buffer.0).unwrap();
-        self.device.SetFVF(D3DFVF_CUSTOMVERTEX).unwrap();
+        self.vertex_buffer.0.Unlock()?;
+        self.index_buffer.0.Unlock()?;
+        self.device.SetStreamSource(
+            0,
+            &self.vertex_buffer.0,
+            0,
+            mem::size_of::<CustomVertex>() as u32,
+        )?;
+        self.device.SetIndices(&self.index_buffer.0)?;
+        self.device.SetFVF(D3DFVF_CUSTOMVERTEX)?;
         Ok(())
     }
 
@@ -404,7 +406,7 @@ impl Renderer {
             std::ptr::copy(pixels, d3d9_memory, width * 4);
         }
 
-        result_texture.UnlockRect(0).unwrap();
+        result_texture.UnlockRect(0)?;
         fonts.tex_id = TextureId::from(FONT_TEX_ID);
         Ok(result_texture)
     }
@@ -424,6 +426,6 @@ impl StateBackup {
 impl Drop for StateBackup {
     #[inline]
     fn drop(&mut self) {
-        unsafe { self.0.Apply().unwrap() };
+        unsafe { self.0.Apply().expect("applying state backup failed") };
     }
 }
