@@ -2,9 +2,7 @@
 #![deny(missing_docs)]
 //! This crate offers a DirectX 9 renderer for the [imgui-rs](https://docs.rs/imgui/*/imgui/) rust bindings.
 
-use std::mem;
-use std::ptr;
-use std::slice;
+use std::{mem, ptr, slice};
 
 use imgui::{
     internal::RawWrapper, BackendFlags, Context, DrawCmd, DrawCmdParams, DrawData, DrawIdx,
@@ -26,9 +24,9 @@ use windows::Win32::Graphics::Direct3D9::{
 use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D::{D3DMATRIX, D3DMATRIX_0};
 use windows::Win32::Graphics::Dxgi::DXGI_ERROR_INVALID_CALL;
-use windows::Win32::System::SystemServices::D3DFVF_TEX1;
-use windows::Win32::System::SystemServices::D3DFVF_XYZ;
-use windows::Win32::System::SystemServices::{D3DFVF_DIFFUSE, D3DTA_DIFFUSE, D3DTA_TEXTURE};
+use windows::Win32::System::SystemServices::{
+    D3DFVF_DIFFUSE, D3DFVF_TEX1, D3DFVF_XYZ, D3DTA_DIFFUSE, D3DTA_TEXTURE,
+};
 
 const FONT_TEX_ID: usize = !0;
 const D3DFVF_CUSTOMVERTEX: u32 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
@@ -42,7 +40,7 @@ const INDEX_BUF_ADD_CAPACITY: usize = 10000;
 ///Reexport of windows::core::Result<T>
 pub type Result<T> = windows::core::Result<T>;
 
-static MAT_IDENTITY: D3DMATRIX = D3DMATRIX {
+const MAT_IDENTITY: D3DMATRIX = D3DMATRIX {
     Anonymous: D3DMATRIX_0 {
         m: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -416,10 +414,7 @@ struct StateBackup(IDirect3DStateBlock9);
 
 impl StateBackup {
     unsafe fn backup(device: &IDirect3DDevice9) -> Result<Self> {
-        match device.CreateStateBlock(D3DSBT_ALL) {
-            Ok(state_block) => Ok(StateBackup(state_block)),
-            Err(e) => Err(e),
-        }
+        device.CreateStateBlock(D3DSBT_ALL).map(StateBackup)
     }
 }
 
