@@ -11,7 +11,7 @@ readme = "README.md"
 categories = ["gui", "rendering"]
 
 [dependencies]
-windows = { version = "0.38.0", features = [
+windows = { version = "0.39.0", features = [
     "Win32_Foundation",
     "Win32_System_Threading",
     "Win32_Graphics_Dxgi",
@@ -22,13 +22,13 @@ windows = { version = "0.38.0", features = [
     "Win32_System_SystemServices",
 ] }
 
-imgui = "0.8"
+imgui = "0.8.2"
 
 [dev-dependencies]
-imgui = "0.8"
-imgui-winit-support = "0.8"
-winit = "0.25"
-raw-window-handle = "0.3"
+imgui = "0.8.2"
+imgui-winit-support = "0.8.2"
+winit = "0.25.0"
+raw-window-handle = "0.3.0"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
