@@ -136,7 +136,7 @@ impl Renderer {
 
             let _state_guard = StateBackup::backup(&self.device)?;
 
-            self.set_render_state(draw_data);
+            self.set_render_state(draw_data)?;
             self.write_buffers(draw_data)?;
             self.render_impl(draw_data)
         }
