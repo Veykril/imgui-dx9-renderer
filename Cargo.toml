@@ -24,6 +24,7 @@ imgui = "0.8.2"
 imgui = "0.8.2"
 imgui-winit-support = "0.8.2"
 raw-window-handle = "0.3.0"
+windows = { version = "0.39.0", features = ["Win32_Graphics_Gdi"] }
 winit = "0.25.0"
 
 [package.metadata.docs.rs]
