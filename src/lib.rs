@@ -217,12 +217,12 @@ impl Renderer {
         device.SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD.0 as u32)?;
         device.SetRenderState(D3DRS_ZWRITEENABLE, FALSE)?;
         device.SetRenderState(D3DRS_ALPHATESTENABLE, FALSE)?;
-        device.SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE.0 as u32)?;
+        device.SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE.0)?;
         device.SetRenderState(D3DRS_ZENABLE, FALSE)?;
         device.SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE)?;
-        device.SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD.0 as u32)?;
-        device.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA.0 as u32)?;
-        device.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA.0 as u32)?;
+        device.SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD.0)?;
+        device.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA.0)?;
+        device.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA.0)?;
         device.SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, TRUE)?;
         device.SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE.0)?;
         device.SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA.0)?;

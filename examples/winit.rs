@@ -108,7 +108,7 @@ fn main() {
                 device.BeginScene().unwrap();
             }
 
-            let ui = imgui.frame();
+            let ui = imgui.new_frame();
             ui.window("Hello world")
                 .size([300.0, 100.0], imgui::Condition::FirstUseEver)
                 .build(|| {
