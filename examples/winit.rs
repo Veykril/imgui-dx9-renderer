@@ -109,9 +109,9 @@ fn main() {
             }
 
             let ui = imgui.frame();
-            imgui::Window::new("Hello world")
+            ui.window("Hello world")
                 .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-                .build(&ui, || {
+                .build(|| {
                     ui.text("Hello world!");
                     ui.text("This...is...imgui-rs!");
                     ui.separator();
@@ -119,8 +119,8 @@ fn main() {
                     ui.text(&format!("Mouse Position: ({:.1},{:.1})", mouse_pos[0], mouse_pos[1]));
                 });
             ui.show_demo_window(&mut true);
-            platform.prepare_render(&ui, &window);
-            renderer.render(ui.render()).unwrap();
+            platform.prepare_render(ui, &window);
+            renderer.render(imgui.render()).unwrap();
             unsafe {
                 device.EndScene().unwrap();
                 device.Present(ptr::null_mut(), ptr::null_mut(), None, ptr::null_mut()).unwrap();
