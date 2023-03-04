@@ -11,9 +11,10 @@ readme = "README.md"
 categories = ["gui", "rendering"]
 
 [dependencies]
-imgui = "0.9.0"
-windows = { version = "0.43.0", features = [
+imgui = "0.10.0"
+windows = { version = "0.44.0", features = [
     "Win32_Foundation",
+    "Foundation_Numerics",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D9",
     "Win32_Graphics_Dxgi",
@@ -21,11 +22,11 @@ windows = { version = "0.43.0", features = [
 ] }
 
 [dev-dependencies]
-imgui = "0.9.0"
-imgui-winit-support = "0.9.0"
-raw-window-handle = "0.3.0"
-windows = { version = "0.43.0", features = ["Win32_Graphics_Gdi"] }
-winit = "0.27.0"
+imgui = "0.10.0"
+imgui-winit-support = "0.10.0"
+raw-window-handle = "0.5.0"
+windows = { version = "0.44.0", features = ["Win32_Graphics_Gdi"] }
+winit = "0.27.5"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
