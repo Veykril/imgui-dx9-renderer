@@ -66,7 +66,7 @@ fn main() {
         .with_inner_size(LogicalSize { width: WINDOW_WIDTH, height: WINDOW_HEIGHT })
         .build(&event_loop)
         .unwrap();
-    let hwnd = if let RawWindowHandle::Windows(handle) = window.raw_window_handle() {
+    let hwnd = if let RawWindowHandle::Win32(handle) = window.raw_window_handle() {
         HWND(handle.hwnd as isize)
     } else {
         unreachable!()
