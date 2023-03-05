@@ -1,6 +1,6 @@
 [package]
 name = "imgui-dx9-renderer"
-version = "0.8.0"
+version = "0.10.0"
 authors = ["Lukas Wirth <lukastw97@gmail.com>"]
 edition = "2021"
 description = "DirectX 9 renderer for the imgui crate"
