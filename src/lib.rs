@@ -86,8 +86,8 @@ impl Renderer {
     ///
     /// [`IDirect3DDevice9`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/shared/d3d9/struct.IDirect3DDevice9.html
     pub unsafe fn new(ctx: &mut Context, device: IDirect3DDevice9) -> Result<Self> {
-        let font_tex =
-            IDirect3DBaseTexture9::from(Self::create_font_texture(ctx.fonts(), &device)?);
+        let font_tex: IDirect3DBaseTexture9 =
+            mem::transmute(Self::create_font_texture(ctx.fonts(), &device)?);
 
         ctx.io_mut().backend_flags |= BackendFlags::RENDERER_HAS_VTX_OFFSET;
         ctx.set_renderer_name(String::from(concat!(
