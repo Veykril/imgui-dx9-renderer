@@ -29,6 +29,7 @@ use windows::Win32::Graphics::Dxgi::DXGI_ERROR_INVALID_CALL;
 use windows::Win32::System::SystemServices::{
     D3DFVF_DIFFUSE, D3DFVF_TEX1, D3DFVF_XYZ, D3DTA_DIFFUSE, D3DTA_TEXTURE,
 };
+use windows::core::ComInterface;
 
 const FONT_TEX_ID: usize = !0;
 const D3DFVF_CUSTOMVERTEX: u32 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
@@ -86,8 +87,8 @@ impl Renderer {
     ///
     /// [`IDirect3DDevice9`]: https://docs.rs/winapi/0.3/x86_64-pc-windows-msvc/winapi/shared/d3d9/struct.IDirect3DDevice9.html
     pub unsafe fn new(ctx: &mut Context, device: IDirect3DDevice9) -> Result<Self> {
-        let font_tex =
-            IDirect3DBaseTexture9::from(Self::create_font_texture(ctx.fonts(), &device)?);
+		let t = Self::create_font_texture(ctx.fonts(), &device)?;
+        let font_tex: IDirect3DBaseTexture9 = t.cast()?;
 
         ctx.io_mut().backend_flags |= BackendFlags::RENDERER_HAS_VTX_OFFSET;
         ctx.set_renderer_name(String::from(concat!(
@@ -392,7 +393,7 @@ impl Renderer {
     // FIXME, imgui hands us an rgba texture while we make dx9 think it receives an
     // argb texture
     unsafe fn create_font_texture(
-        mut fonts: &mut imgui::FontAtlas,
+        fonts: &mut imgui::FontAtlas,
         device: &IDirect3DDevice9,
     ) -> Result<IDirect3DTexture9> {
         let texture = fonts.build_rgba32_texture();
